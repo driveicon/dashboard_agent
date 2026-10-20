@@ -295,6 +295,10 @@ function generateDefaultTiketLogs() {
   return [];
 }
 const DEFAULT_TIKETS = [];
+const MONTHLY_TICKET_TARGET = 1320;
+if (typeof window !== 'undefined') {
+  window.MONTHLY_TICKET_TARGET = MONTHLY_TICKET_TARGET;
+}
 
 function generateDefaultAhtLogs() {
   return [];
@@ -1427,7 +1431,7 @@ const PAGE_CONTROL_DEFAULTS = {
     filterPaStatus: 'ALL'
   },
   ca: {
-    filterCaMonth: '2026-09',
+    filterCaMonth: '2026-10',
     filterCaSummarySort: 'AVG_DESC',
     searchCaInput: '',
     filterCaUserSelect: 'ALL',
@@ -1436,7 +1440,7 @@ const PAGE_CONTROL_DEFAULTS = {
     filterCaScoreSort: 'DATE_DESC'
   },
   tiket: {
-    filterTiketMonth: '2026-09',
+    filterTiketMonth: '2026-10',
     filterSummaryTiketUser: 'ALL',
     filterSummaryTiketService: 'ALL',
     filterTiketSummarySort: 'COUNT_DESC',
@@ -1599,8 +1603,8 @@ function getAvailableMonthList() {
 const DYNAMIC_MONTH_FILTER_CONFIGS = [
   { id: 'filterOverviewMonth', pageKey: 'overview', defaultVal: '2026-09' },
   { id: 'filterPaMonth', pageKey: 'update-pa', defaultVal: '2026-09' },
-  { id: 'filterCaMonth', pageKey: 'ca', defaultVal: '2026-09' },
-  { id: 'filterTiketMonth', pageKey: 'tiket', defaultVal: '2026-09' },
+  { id: 'filterCaMonth', pageKey: 'ca', defaultVal: '2026-10' },
+  { id: 'filterTiketMonth', pageKey: 'tiket', defaultVal: '2026-10' },
   { id: 'filterAhtMonth', pageKey: 'aht', defaultVal: '2026-09' },
   { id: 'filterArtMonth', pageKey: 'art', defaultVal: '2026-09' },
   { id: 'filterFindingMonth', pageKey: 'finding', defaultVal: '2026-09' }
@@ -2097,6 +2101,7 @@ const UI = {
   caCardTotalSamples: document.getElementById('caCardTotalSamples'),
   caStatTotalSamples: document.getElementById('caStatTotalSamples'),
   caCardTopUser: document.getElementById('caCardTopUser'),
+  caStatTopUser: document.getElementById('caStatTopUser'),
   caStatTopUserSub: document.getElementById('caStatTopUserSub'),
   caCardCompliance: document.getElementById('caCardCompliance'),
   caStatCompliance: document.getElementById('caStatCompliance'),
@@ -2780,11 +2785,13 @@ function showToast(title, message, type = 'info') {
   `;
 
   const closeBtn = toast.querySelector('.toast-close-btn');
-  closeBtn.addEventListener('click', () => {
-    toast.style.opacity = '0';
-    toast.style.transform = 'translateX(50px)';
-    setTimeout(() => toast.remove(), 250);
-  });
+  if (closeBtn) {
+    closeBtn.addEventListener('click', () => {
+      toast.style.opacity = '0';
+      toast.style.transform = 'translateX(50px)';
+      setTimeout(() => toast.remove(), 250);
+    });
+  }
 
   UI.toastContainer.appendChild(toast);
 
@@ -3664,7 +3671,7 @@ function renderAppView() {
     UI.caCardTotalSamples.classList.toggle('hidden', !isAdmin);
   }
   if (UI.caCardTopUser) {
-    UI.caCardTopUser.classList.toggle('hidden', !isAdmin);
+    UI.caCardTopUser.classList.remove('hidden');
   }
   if (UI.caCardCompliance) {
     UI.caCardCompliance.classList.toggle('hidden', !isAdmin);
@@ -9597,7 +9604,7 @@ function renderCaPage() {
   const currentUser = state.currentUser;
   const currentFullName = currentUser ? currentUser.fullName : '';
 
-  const selMonth = (UI.filterCaMonth ? UI.filterCaMonth.value : '2026-09') || '2026-09';
+  const selMonth = (UI.filterCaMonth ? UI.filterCaMonth.value : '2026-10') || '2026-10';
   const monthLabel = formatMonthLabel(selMonth);
   if (UI.caMonthHeaderLabel) {
     UI.caMonthHeaderLabel.textContent = monthLabel;
@@ -9629,22 +9636,27 @@ function renderCaPage() {
     UI.caUserSummarySection.classList.toggle('hidden', !isAdmin);
   }
 
-  // Toggle 3 metric cards based on role
+  // Metric cards visibility (Top User card remains visible to inspire performance)
   if (UI.caCardTotalSamples) UI.caCardTotalSamples.classList.toggle('hidden', !isAdmin);
-  if (UI.caCardTopUser) UI.caCardTopUser.classList.toggle('hidden', !isAdmin);
+  if (UI.caCardTopUser) UI.caCardTopUser.classList.remove('hidden');
   if (UI.caCardCompliance) UI.caCardCompliance.classList.toggle('hidden', !isAdmin);
 
   // Populate or preserve user filter in logs table (Admin only)
   if (UI.filterCaUserSelect) {
     UI.filterCaUserSelect.classList.toggle('hidden', !isAdmin);
     if (isAdmin) {
-      const curUserVal = UI.filterCaUserSelect.value || 'ALL';
+      const curUserVal = (UI.filterCaUserSelect && UI.filterCaUserSelect.value) || 'ALL';
       let userOpts = '<option value="ALL">Semua User</option>';
       users.forEach(u => {
         const isSel = (curUserVal === u.fullName);
         userOpts += `<option value="${u.fullName}" ${isSel ? 'selected' : ''}>${u.fullName} (${u.role.toUpperCase()})</option>`;
       });
       UI.filterCaUserSelect.innerHTML = userOpts;
+      if (curUserVal && users.some(u => u.fullName === curUserVal)) {
+        UI.filterCaUserSelect.value = curUserVal;
+      } else {
+        UI.filterCaUserSelect.value = 'ALL';
+      }
     }
   }
 
@@ -9778,39 +9790,73 @@ function renderCaPage() {
   // ========================================================
   // Monthly Overview Top Metric Cards (Decimal display without %)
   // ========================================================
-  if (isAdmin) {
-    let monthOverallAvg = '0.00';
-    if (monthLogs.length > 0) {
-      const totalScore = monthLogs.reduce((acc, l) => acc + (Number(l.score) || 0), 0);
-      monthOverallAvg = (totalScore / monthLogs.length).toFixed(2);
+  let monthOverallAvg = '0.00';
+  if (monthLogs.length > 0) {
+    const totalScore = monthLogs.reduce((acc, l) => acc + (Number(l.score) || 0), 0);
+    monthOverallAvg = (totalScore / monthLogs.length).toFixed(2);
+  }
+
+  // User Skor Tertinggi: Top Performer determined by HIGHEST average score (and tiebreaker max score)
+  const evaluatedMap = new Map();
+  monthLogs.forEach(l => {
+    const name = (l.userFullName || '').trim();
+    if (!name) return;
+    if (!evaluatedMap.has(name)) {
+      evaluatedMap.set(name, {
+        name,
+        scores: [],
+        department: l.department || ''
+      });
     }
+    const score = Number(l.score) || 0;
+    evaluatedMap.get(name).scores.push(score);
+  });
+
+  const evaluatedAll = Array.from(evaluatedMap.values()).map(item => {
+    const sum = item.scores.reduce((a, b) => a + b, 0);
+    const avg = sum / item.scores.length;
+    const max = Math.max(...item.scores);
+    const min = Math.min(...item.scores);
+    return {
+      fullName: item.name,
+      avgScore: avg,
+      maxScore: max,
+      minScore: min,
+      daysEvaluated: item.scores.length,
+      department: item.department
+    };
+  });
+
+  evaluatedAll.sort((a, b) => {
+    if (Math.abs(b.avgScore - a.avgScore) > 0.0001) {
+      return b.avgScore - a.avgScore;
+    }
+    return b.maxScore - a.maxScore;
+  });
+
+  const elTopUser = UI.caStatTopUser || document.getElementById('caStatTopUser');
+  const elTopUserSub = UI.caStatTopUserSub || document.getElementById('caStatTopUserSub');
+
+  if (evaluatedAll.length > 0) {
+    const topUser = evaluatedAll[0];
+    if (elTopUser) {
+      elTopUser.textContent = topUser.fullName;
+      elTopUser.title = `${topUser.fullName} - Rata-rata: ${formatCaScore(topUser.avgScore.toFixed(2))} (Tertinggi: ${formatCaScore(topUser.maxScore.toFixed(2))})`;
+    }
+    if (elTopUserSub) {
+      elTopUserSub.textContent = `Rata-rata: ${formatCaScore(topUser.avgScore.toFixed(2))} (${topUser.daysEvaluated} hari dinilai)`;
+    }
+  } else {
+    if (elTopUser) elTopUser.textContent = '-';
+    if (elTopUserSub) elTopUserSub.textContent = 'Belum ada penilaian bulan ini';
+  }
+
+  if (isAdmin) {
     if (UI.caStatAvgScore) UI.caStatAvgScore.textContent = formatCaScore(monthOverallAvg);
     if (UI.caStatAvgScoreLabel) UI.caStatAvgScoreLabel.textContent = 'Rata-rata Skor Bulan Ini';
     if (UI.caStatAvgScoreSubtext) UI.caStatAvgScoreSubtext.textContent = 'Rata-rata seluruh user di periode terpilih';
 
     if (UI.caStatTotalSamples) UI.caStatTotalSamples.textContent = `${monthLogs.length} Entri`;
-
-    // User Skor Tertinggi: Top Performer strictly determined by HIGHEST average score in the month
-    const evaluatedAll = users.map(u => {
-      const uLogs = monthLogs.filter(l => l.userFullName === u.fullName);
-      if (uLogs.length === 0) return null;
-      const scores = uLogs.map(l => Number(l.score) || 0);
-      const avg = scores.reduce((acc, val) => acc + val, 0) / scores.length;
-      return { user: u, avgScore: avg, daysEvaluated: uLogs.length };
-    }).filter(Boolean);
-
-    evaluatedAll.sort((a, b) => b.avgScore - a.avgScore);
-
-    if (evaluatedAll.length > 0) {
-      const topUser = evaluatedAll[0];
-      if (UI.caStatTopUser) UI.caStatTopUser.textContent = topUser.user.fullName;
-      if (UI.caStatTopUserSub) {
-        UI.caStatTopUserSub.textContent = `Rata-rata: ${formatCaScore(topUser.avgScore.toFixed(2))} (${topUser.daysEvaluated} hari dinilai)`;
-      }
-    } else {
-      if (UI.caStatTopUser) UI.caStatTopUser.textContent = '-';
-      if (UI.caStatTopUserSub) UI.caStatTopUserSub.textContent = 'Belum ada penilaian bulan ini';
-    }
 
     if (UI.caStatCompliance) {
       const numAvg = parseFloat(monthOverallAvg);
@@ -9831,15 +9877,22 @@ function renderCaPage() {
         ? `Rata-rata penilaian mutu Anda (${userMonthLogs.length} hari dinilai)`
         : 'Belum ada penilaian untuk Anda bulan ini';
     }
+    if (UI.caStatTotalSamples) UI.caStatTotalSamples.textContent = `${userMonthLogs.length} Entri`;
+    if (UI.caStatCompliance) {
+      const numAvg = parseFloat(userAvg);
+      UI.caStatCompliance.textContent = userMonthLogs.length > 0
+        ? (numAvg >= 95.00 ? 'Optimal' : (numAvg >= 85.00 ? 'Baik' : 'Perlu Evaluasi'))
+        : '-';
+    }
   }
 
   // ========================================================
   // Section 2: Log Penilaian Harian (Interval Input Per Hari)
   // ========================================================
   const searchQ = (UI.searchCaInput ? UI.searchCaInput.value.trim().toLowerCase() : '');
-  const filterUser = isAdmin ? (UI.filterCaUserSelect ? UI.filterCaUserSelect.value : 'ALL') : currentFullName;
-  const filterService = (UI.filterCaService ? UI.filterCaService.value : 'ALL');
-  const filterGrade = (UI.filterCaGrade ? UI.filterCaGrade.value : 'ALL');
+  const filterUser = isAdmin ? ((UI.filterCaUserSelect && UI.filterCaUserSelect.value) || 'ALL') : currentFullName;
+  const filterService = ((UI.filterCaService && UI.filterCaService.value) || 'ALL');
+  const filterGrade = ((UI.filterCaGrade && UI.filterCaGrade.value) || 'ALL');
 
   if (UI.btnClearSearchCa) {
     UI.btnClearSearchCa.classList.toggle('hidden', !searchQ);
@@ -10121,8 +10174,17 @@ function handleSaveCa(e) {
   if (typeof updateDynamicMonthDropdowns === 'function') {
     updateDynamicMonthDropdowns();
   }
-  if (UI.filterCaMonth && Array.from(UI.filterCaMonth.options).some(o => o.value === entryMonth)) {
-    UI.filterCaMonth.value = entryMonth;
+  if (UI.filterCaMonth) {
+    if (!UI.filterCaMonth.options || UI.filterCaMonth.options.length === 0 || Array.from(UI.filterCaMonth.options).some(o => o.value === entryMonth)) {
+      UI.filterCaMonth.value = entryMonth;
+    }
+  }
+  if (typeof saveUserControl === 'function') {
+    saveUserControl('filterCaMonth', entryMonth);
+    saveUserControl('filterCaUserSelect', 'ALL');
+    saveUserControl('filterCaService', 'ALL');
+    saveUserControl('filterCaGrade', 'ALL');
+    saveUserControl('searchCaInput', '');
   }
 
   closeCaModal();
@@ -10146,7 +10208,7 @@ window.promptDeleteCaMonth = function() {
     showToast('Akses Dibatasi', 'Hanya Administrator yang memiliki wewenang untuk menghapus seluruh data bulan ini.', 'danger');
     return;
   }
-  const selMonth = (UI.filterCaMonth ? UI.filterCaMonth.value : '2026-09') || '2026-09';
+  const selMonth = (UI.filterCaMonth ? UI.filterCaMonth.value : '2026-10') || '2026-10';
   if (!selMonth || selMonth === 'ALL') {
     showToast('Pilih Bulan Spesifik', 'Silakan pilih bulan tertentu terlebih dahulu untuk menghapus data bulanan.', 'warning');
     return;
@@ -10187,11 +10249,11 @@ window.promptDeleteSelectedCa = function() {
 // Tandai / Batal Tandai Semua Data yang Sedang Tampil
 window.toggleSelectAllCa = function(selectAll) {
   if (!state.isAdmin()) return;
-  const selMonth = (UI.filterCaMonth ? UI.filterCaMonth.value : '2026-09') || '2026-09';
+  const selMonth = (UI.filterCaMonth ? UI.filterCaMonth.value : '2026-10') || '2026-10';
   const searchQ = (UI.searchCaInput ? UI.searchCaInput.value.trim().toLowerCase() : '');
-  const filterUser = (UI.filterCaUserSelect ? UI.filterCaUserSelect.value : 'ALL');
-  const filterService = (UI.filterCaService ? UI.filterCaService.value : 'ALL');
-  const filterGrade = (UI.filterCaGrade ? UI.filterCaGrade.value : 'ALL');
+  const filterUser = ((UI.filterCaUserSelect && UI.filterCaUserSelect.value) || 'ALL');
+  const filterService = ((UI.filterCaService && UI.filterCaService.value) || 'ALL');
+  const filterGrade = ((UI.filterCaGrade && UI.filterCaGrade.value) || 'ALL');
 
   const logs = state.getCaLogs();
   const filtered = logs.filter(item => {
@@ -10252,7 +10314,7 @@ function exportCaExcel() {
   const isAdmin = state.isAdmin();
   const currentUser = state.currentUser;
   const currentFullName = currentUser ? currentUser.fullName : '';
-  const selMonth = (UI.filterCaMonth ? UI.filterCaMonth.value : '2026-09') || '2026-09';
+  const selMonth = (UI.filterCaMonth ? UI.filterCaMonth.value : '2026-10') || '2026-10';
   const allLogs = state.getCaLogs();
   const users = state.getUsers();
 
@@ -11022,7 +11084,7 @@ function renderTiketPage() {
   const currentUser = state.currentUser;
   const currentFullName = currentUser ? currentUser.fullName : '';
 
-  const selectedMonth = (UI.filterTiketMonth ? UI.filterTiketMonth.value : '2026-09') || '2026-09';
+  const selectedMonth = (UI.filterTiketMonth ? UI.filterTiketMonth.value : '2026-10') || '2026-10';
   const monthLabel = formatMonthLabel(selectedMonth);
 
   if (UI.tiketMonthHeaderLabel) {
@@ -11110,6 +11172,8 @@ function renderTiketPage() {
         users.map(u => `<option value="${u.fullName}">${u.fullName} (${u.role.toUpperCase()})</option>`).join('');
       if (Array.from(UI.filterTiketUserSelect.options).some(o => o.value === currentVal)) {
         UI.filterTiketUserSelect.value = currentVal;
+      } else {
+        UI.filterTiketUserSelect.value = 'ALL';
       }
     } else {
       // Non-admin user can ONLY select themselves
@@ -11437,9 +11501,9 @@ function renderTiketPage() {
   }
 
   const searchQ = (UI.searchTiketInput ? UI.searchTiketInput.value.trim().toLowerCase() : '');
-  const filterUser = isAdmin ? (UI.filterTiketUserSelect ? UI.filterTiketUserSelect.value : 'ALL') : currentFullName;
-  const filterService = (UI.filterTiketService ? UI.filterTiketService.value : 'ALL');
-  const filterGrade = (UI.filterTiketGrade ? UI.filterTiketGrade.value : 'ALL');
+  const filterUser = isAdmin ? ((UI.filterTiketUserSelect && UI.filterTiketUserSelect.value) || 'ALL') : currentFullName;
+  const filterService = (UI.filterTiketService && UI.filterTiketService.value) || 'ALL';
+  const filterGrade = (UI.filterTiketGrade && UI.filterTiketGrade.value) || 'ALL';
 
   if (UI.btnClearSearchTiket) {
     UI.btnClearSearchTiket.classList.toggle('hidden', !searchQ);
@@ -11462,8 +11526,8 @@ function renderTiketPage() {
                     String(tCount).includes(searchQ);
       if (!match) return false;
     }
-    if (isAdmin && filterUser !== 'ALL' && item.userFullName !== filterUser) return false;
-    if (filterService !== 'ALL' && item.department !== filterService) return false;
+    if (isAdmin && filterUser && filterUser !== 'ALL' && item.userFullName !== filterUser) return false;
+    if (filterService && filterService !== 'ALL' && item.department !== filterService) return false;
     if (filterGrade === 'Tercapai' && tCount < 60) return false;
     if (filterGrade === 'Di Bawah Target' && tCount >= 60) return false;
     return true;
@@ -11607,9 +11671,11 @@ function openAddTiketModal() {
 
   // Set default date to today or current month
   const now = new Date();
-  const selectedMonth = (UI.filterTiketMonth ? UI.filterTiketMonth.value : '2026-09') || '2026-09';
+  const selectedMonth = (UI.filterTiketMonth ? UI.filterTiketMonth.value : '2026-10') || '2026-10';
   const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-  const defaultDate = todayStr.startsWith(selectedMonth) ? todayStr : `${selectedMonth}-15`;
+  const defaultDate = (selectedMonth !== 'ALL' && todayStr.startsWith(selectedMonth))
+    ? todayStr
+    : (selectedMonth !== 'ALL' ? `${selectedMonth}-15` : todayStr);
 
   if (UI.formTiketDate) UI.formTiketDate.value = defaultDate;
   if (UI.formTiketCount) UI.formTiketCount.value = '60';
@@ -11688,9 +11754,13 @@ function handleSaveTiket(e) {
     // EDIT
     const idx = tikets.findIndex(t => t.id === id);
     if (idx !== -1) {
+      const users = state.getUsers();
+      const targetUser = users.find(usr => usr.fullName === userFullName);
       tikets[idx] = {
         ...tikets[idx],
         date,
+        userId: targetUser ? targetUser.id : (tikets[idx].userId || (u ? u.id : '')),
+        username: targetUser ? targetUser.username : (tikets[idx].username || (u ? u.username : '')),
         userFullName,
         department,
         ticketCount,
@@ -11703,9 +11773,13 @@ function handleSaveTiket(e) {
     }
   } else {
     // NEW
+    const users = state.getUsers();
+    const targetUser = users.find(usr => usr.fullName === userFullName);
     const newEntry = {
       id: 'tkt_' + Date.now(),
       date,
+      userId: targetUser ? targetUser.id : (u ? u.id : ''),
+      username: targetUser ? targetUser.username : (u ? u.username : ''),
       userFullName,
       department,
       ticketCount,
@@ -11723,9 +11797,23 @@ function handleSaveTiket(e) {
   if (typeof updateDynamicMonthDropdowns === 'function') {
     updateDynamicMonthDropdowns();
   }
-  if (UI.filterTiketMonth && Array.from(UI.filterTiketMonth.options).some(o => o.value === entryMonth)) {
-    UI.filterTiketMonth.value = entryMonth;
+  if (UI.filterTiketMonth) {
+    if (!UI.filterTiketMonth.options || UI.filterTiketMonth.options.length === 0 || Array.from(UI.filterTiketMonth.options).some(o => o.value === entryMonth)) {
+      UI.filterTiketMonth.value = entryMonth;
+    }
   }
+  if (typeof saveUserControl === 'function') {
+    saveUserControl('filterTiketMonth', entryMonth);
+    saveUserControl('filterTiketUserSelect', 'ALL');
+    saveUserControl('filterTiketService', 'ALL');
+    saveUserControl('filterTiketGrade', 'ALL');
+    saveUserControl('searchTiketInput', '');
+  }
+  if (UI.filterTiketUserSelect) UI.filterTiketUserSelect.value = 'ALL';
+  if (UI.filterTiketService) UI.filterTiketService.value = 'ALL';
+  if (UI.filterTiketGrade) UI.filterTiketGrade.value = 'ALL';
+  if (UI.searchTiketInput) UI.searchTiketInput.value = '';
+  if (UI.btnClearSearchTiket) UI.btnClearSearchTiket.classList.add('hidden');
 
   closeTiketModal();
   renderTiketPage();
@@ -11773,7 +11861,7 @@ window.filterTiketByUser = function(userFullName) {
 
 function promptDeleteAllTiketMonth() {
   if (!state.isAdmin()) return;
-  const month = (UI.filterTiketMonth ? UI.filterTiketMonth.value : '2026-09') || '2026-09';
+  const month = (UI.filterTiketMonth ? UI.filterTiketMonth.value : '2026-10') || '2026-10';
   if (!month || month === 'ALL') {
     showToast('Pilih Bulan Spesifik', 'Silakan pilih bulan tertentu terlebih dahulu untuk menghapus data bulanan.', 'warning');
     return;
@@ -11805,12 +11893,12 @@ function promptDeleteSelectedTiket() {
 
 function toggleSelectAllTiket(selectAll) {
   if (!state.isAdmin()) return;
-  const selectedMonth = (UI.filterTiketMonth ? UI.filterTiketMonth.value : '2026-09') || '2026-09';
+  const selectedMonth = (UI.filterTiketMonth ? UI.filterTiketMonth.value : '2026-10') || '2026-10';
   const monthLogs = (selectedMonth && selectedMonth !== 'ALL') ? state.getTikets().filter(l => (l.date || '').startsWith(selectedMonth)) : state.getTikets();
   const searchQ = (UI.searchTiketInput ? UI.searchTiketInput.value.trim().toLowerCase() : '');
-  const filterUser = (UI.filterTiketUserSelect ? UI.filterTiketUserSelect.value : 'ALL');
-  const filterService = (UI.filterTiketService ? UI.filterTiketService.value : 'ALL');
-  const filterGrade = (UI.filterTiketGrade ? UI.filterTiketGrade.value : 'ALL');
+  const filterUser = ((UI.filterTiketUserSelect && UI.filterTiketUserSelect.value) || 'ALL');
+  const filterService = ((UI.filterTiketService && UI.filterTiketService.value) || 'ALL');
+  const filterGrade = ((UI.filterTiketGrade && UI.filterTiketGrade.value) || 'ALL');
 
   const filtered = monthLogs.filter(item => {
     const tCount = Number(item.ticketCount) || 0;
@@ -11847,7 +11935,7 @@ function exportTiketExcel() {
   const isAdmin = state.isAdmin();
   const currentUser = state.currentUser;
   const currentFullName = currentUser ? currentUser.fullName : '';
-  const selectedMonth = (UI.filterTiketMonth ? UI.filterTiketMonth.value : '2026-09') || '2026-09';
+  const selectedMonth = (UI.filterTiketMonth ? UI.filterTiketMonth.value : '2026-10') || '2026-10';
   const allTikets = state.getTikets();
   const users = state.getUsers();
 
@@ -17767,22 +17855,66 @@ function initEvents() {
     saveUserControl('filterCaMonth', UI.filterCaMonth.value);
     renderCaPage();
   });
-  if (UI.filterCaUserSelect) UI.filterCaUserSelect.addEventListener('change', renderCaPage);
-  if (UI.searchCaInput) UI.searchCaInput.addEventListener('input', renderCaPage);
-  if (UI.btnClearSearchCa) {
-    UI.btnClearSearchCa.addEventListener('click', () => {
-      if (UI.searchCaInput) UI.searchCaInput.value = '';
-      saveUserControl('searchCaInput', '');
+  if (UI.filterCaUserSelect) {
+    UI.filterCaUserSelect.addEventListener('change', () => {
+      if (typeof saveUserControl === 'function') {
+        saveUserControl('filterCaUserSelect', UI.filterCaUserSelect.value);
+      }
       renderCaPage();
     });
   }
-  if (UI.filterCaService) UI.filterCaService.addEventListener('change', renderCaPage);
-  if (UI.filterCaGrade) UI.filterCaGrade.addEventListener('change', renderCaPage);
-  if (UI.filterCaSummarySort) UI.filterCaSummarySort.addEventListener('change', renderCaPage);
-  if (UI.filterCaScoreSort) UI.filterCaScoreSort.addEventListener('change', renderCaPage);
+  if (UI.searchCaInput) {
+    UI.searchCaInput.addEventListener('input', () => {
+      if (typeof saveUserControl === 'function') {
+        saveUserControl('searchCaInput', UI.searchCaInput.value);
+      }
+      renderCaPage();
+    });
+  }
+  if (UI.btnClearSearchCa) {
+    UI.btnClearSearchCa.addEventListener('click', () => {
+      if (UI.searchCaInput) UI.searchCaInput.value = '';
+      if (typeof saveUserControl === 'function') {
+        saveUserControl('searchCaInput', '');
+      }
+      renderCaPage();
+    });
+  }
+  if (UI.filterCaService) {
+    UI.filterCaService.addEventListener('change', () => {
+      if (typeof saveUserControl === 'function') {
+        saveUserControl('filterCaService', UI.filterCaService.value);
+      }
+      renderCaPage();
+    });
+  }
+  if (UI.filterCaGrade) {
+    UI.filterCaGrade.addEventListener('change', () => {
+      if (typeof saveUserControl === 'function') {
+        saveUserControl('filterCaGrade', UI.filterCaGrade.value);
+      }
+      renderCaPage();
+    });
+  }
+  if (UI.filterCaSummarySort) {
+    UI.filterCaSummarySort.addEventListener('change', () => {
+      if (typeof saveUserControl === 'function') {
+        saveUserControl('filterCaSummarySort', UI.filterCaSummarySort.value);
+      }
+      renderCaPage();
+    });
+  }
+  if (UI.filterCaScoreSort) {
+    UI.filterCaScoreSort.addEventListener('change', () => {
+      if (typeof saveUserControl === 'function') {
+        saveUserControl('filterCaScoreSort', UI.filterCaScoreSort.value);
+      }
+      renderCaPage();
+    });
+  }
   if (UI.btnResetCaFilters) {
     UI.btnResetCaFilters.addEventListener('click', () => {
-      if (UI.filterCaMonth) UI.filterCaMonth.value = '2026-09';
+      if (UI.filterCaMonth) UI.filterCaMonth.value = '2026-10';
       if (UI.filterCaUserSelect) UI.filterCaUserSelect.value = 'ALL';
       if (UI.searchCaInput) UI.searchCaInput.value = '';
       if (UI.filterCaService) UI.filterCaService.value = 'ALL';
@@ -17910,15 +18042,43 @@ function initEvents() {
       renderTiketPage();
     });
   }
-  if (UI.filterTiketUserSelect) UI.filterTiketUserSelect.addEventListener('change', renderTiketPage);
-  if (UI.filterTiketService) UI.filterTiketService.addEventListener('change', renderTiketPage);
-  if (UI.filterTiketGrade) UI.filterTiketGrade.addEventListener('change', renderTiketPage);
-  if (UI.filterTiketScoreSort) UI.filterTiketScoreSort.addEventListener('change', renderTiketPage);
+  if (UI.filterTiketUserSelect) {
+    UI.filterTiketUserSelect.addEventListener('change', () => {
+      if (typeof saveUserControl === 'function') {
+        saveUserControl('filterTiketUserSelect', UI.filterTiketUserSelect.value);
+      }
+      renderTiketPage();
+    });
+  }
+  if (UI.filterTiketService) {
+    UI.filterTiketService.addEventListener('change', () => {
+      if (typeof saveUserControl === 'function') {
+        saveUserControl('filterTiketService', UI.filterTiketService.value);
+      }
+      renderTiketPage();
+    });
+  }
+  if (UI.filterTiketGrade) {
+    UI.filterTiketGrade.addEventListener('change', () => {
+      if (typeof saveUserControl === 'function') {
+        saveUserControl('filterTiketGrade', UI.filterTiketGrade.value);
+      }
+      renderTiketPage();
+    });
+  }
+  if (UI.filterTiketScoreSort) {
+    UI.filterTiketScoreSort.addEventListener('change', () => {
+      if (typeof saveUserControl === 'function') {
+        saveUserControl('filterTiketScoreSort', UI.filterTiketScoreSort.value);
+      }
+      renderTiketPage();
+    });
+  }
   if (UI.btnResetTiketFilters) {
     UI.btnResetTiketFilters.addEventListener('click', () => {
       const isAdm = state.isAdmin();
       const myName = state.currentUser ? state.currentUser.fullName : '';
-      if (UI.filterTiketMonth) UI.filterTiketMonth.value = '2026-09';
+      if (UI.filterTiketMonth) UI.filterTiketMonth.value = '2026-10';
       if (UI.filterSummaryTiketUser) UI.filterSummaryTiketUser.value = isAdm ? 'ALL' : myName;
       if (UI.filterSummaryTiketService) UI.filterSummaryTiketService.value = 'ALL';
       if (UI.filterTiketUserSelect) UI.filterTiketUserSelect.value = isAdm ? 'ALL' : myName;
@@ -23381,65 +23541,85 @@ window.syncQuizArenaWithCurrentBank = syncQuizArenaWithCurrentBank;
 window.purgeQuizQuestionFromAllSessions = purgeQuizQuestionFromAllSessions;
 window.startQuizBattle = startQuizBattle;
 window.switchQuizTab = switchQuizTab;
-window.deleteQuizHistoryRecord = deleteQuizHistoryRecord;
-window.clearAllTeamQuizHistory = clearAllTeamQuizHistory;
-window.clearMyQuizHistory = clearMyQuizHistory;
+if (typeof window !== 'undefined') {
+  window.deleteQuizHistoryRecord = deleteQuizHistoryRecord;
+  window.clearAllTeamQuizHistory = clearAllTeamQuizHistory;
+  window.clearMyQuizHistory = clearMyQuizHistory;
+  window.renderCaPage = renderCaPage;
+  window.handleSaveCa = handleSaveCa;
+  window.exportCaExcel = exportCaExcel;
+  window.renderTiketPage = renderTiketPage;
+  window.handleSaveTiket = handleSaveTiket;
+  window.exportTiketExcel = exportTiketExcel;
+  window.toggleSelectAllTiket = toggleSelectAllTiket;
+  window.deselectAllTiket = deselectAllTiket;
+  window.promptDeleteSelectedTiket = promptDeleteSelectedTiket;
+  window.promptDeleteAllTiketMonth = promptDeleteAllTiketMonth;
+  window.saveUserControl = saveUserControl;
+  window.getUserControlValue = getUserControlValue;
+  window.getUserControls = getUserControls;
+}
 
 // ==========================================
 // 16. INITIALIZATION & TIMER LIVENESS LISTENERS
 // ==========================================
 
 // Liveness catch-up untuk timer & stopwatch saat tab dibuka kembali, fokus, atau halaman dimuat
-window.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible') {
+if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
+  window.addEventListener('visibilitychange', () => {
+    if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+      if (typeof window.catchUpTimersAndStopwatches === 'function') {
+        window.catchUpTimersAndStopwatches();
+      }
+      if (typeof state !== 'undefined' && state && state.currentPage === 'timer' && typeof renderTimerPage === 'function') {
+        renderTimerPage();
+      }
+    }
+  });
+
+  window.addEventListener('pageshow', () => {
     if (typeof window.catchUpTimersAndStopwatches === 'function') {
       window.catchUpTimersAndStopwatches();
     }
     if (typeof state !== 'undefined' && state && state.currentPage === 'timer' && typeof renderTimerPage === 'function') {
       renderTimerPage();
     }
-  }
-});
+  });
 
-window.addEventListener('pageshow', () => {
-  if (typeof window.catchUpTimersAndStopwatches === 'function') {
-    window.catchUpTimersAndStopwatches();
-  }
-  if (typeof state !== 'undefined' && state && state.currentPage === 'timer' && typeof renderTimerPage === 'function') {
-    renderTimerPage();
-  }
-});
+  window.addEventListener('focus', () => {
+    if (typeof window.catchUpTimersAndStopwatches === 'function') {
+      window.catchUpTimersAndStopwatches();
+    }
+    if (typeof state !== 'undefined' && state && state.currentPage === 'timer' && typeof renderTimerPage === 'function') {
+      renderTimerPage();
+    }
+  });
 
-window.addEventListener('focus', () => {
-  if (typeof window.catchUpTimersAndStopwatches === 'function') {
-    window.catchUpTimersAndStopwatches();
-  }
-  if (typeof state !== 'undefined' && state && state.currentPage === 'timer' && typeof renderTimerPage === 'function') {
-    renderTimerPage();
-  }
-});
+  window.addEventListener('beforeunload', () => {
+    if (typeof window.catchUpTimersAndStopwatches === 'function') {
+      window.catchUpTimersAndStopwatches();
+    }
+    if (window.FirebaseSync && typeof window.FirebaseSync.flushPendingSync === 'function') {
+      window.FirebaseSync.flushPendingSync();
+    }
+  });
+}
 
-window.addEventListener('beforeunload', () => {
-  if (typeof window.catchUpTimersAndStopwatches === 'function') {
-    window.catchUpTimersAndStopwatches();
-  }
-  if (window.FirebaseSync && typeof window.FirebaseSync.flushPendingSync === 'function') {
-    window.FirebaseSync.flushPendingSync();
-  }
-});
+if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') {
+  document.addEventListener('DOMContentLoaded', () => {
+    initTheme();
+    initSidebarCollapse();
+    initZoomControls();
+    startClock();
+    populateNotifications();
+    if (typeof window !== 'undefined' && typeof window.catchUpTimersAndStopwatches === 'function') {
+      window.catchUpTimersAndStopwatches();
+    }
+    startTimerTicker();
+    initTypingTest();
+    initQuizBattle();
+    initEvents();
+    renderAppView();
+  });
+}
 
-document.addEventListener('DOMContentLoaded', () => {
-  initTheme();
-  initSidebarCollapse();
-  initZoomControls();
-  startClock();
-  populateNotifications();
-  if (typeof window.catchUpTimersAndStopwatches === 'function') {
-    window.catchUpTimersAndStopwatches();
-  }
-  startTimerTicker();
-  initTypingTest();
-  initQuizBattle();
-  initEvents();
-  renderAppView();
-});

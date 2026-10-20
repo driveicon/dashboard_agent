@@ -246,7 +246,7 @@ console.log('\n--- 3. Testing Reset Filter Localization ---');
 sandbox.resetUserControlsForPage('ca', userAdmin);
 
 // Verify Admin CA controls are reset to defaults
-assert.strictEqual(sandbox.getUserControlValue('filterCaMonth', '2026-09', userAdmin), '2026-09');
+assert.strictEqual(sandbox.getUserControlValue('filterCaMonth', '2026-10', userAdmin), '2026-10');
 assert.strictEqual(sandbox.getUserControlValue('filterCaGrade', 'ALL', userAdmin), 'ALL');
 assert.strictEqual(sandbox.getUserControlValue('filterCaScoreSort', 'DATE_DESC', userAdmin), 'DATE_DESC');
 
