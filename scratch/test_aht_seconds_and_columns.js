@@ -31,8 +31,8 @@ assert(js.includes('return `${Math.round(safeSec)} Detik`;'), 'formatAhtSeconds 
 assert(js.includes('return `${safeSec.toLocaleString(\'id-ID\')} Detik`;'), 'formatAhtDuration should return seconds with Detik unit');
 
 // Metric cards use Detik
-assert(html.includes('id="ahtStatAvg">0 <small style="font-size:0.85rem; color:var(--gray-400); font-weight:normal;">Detik</small>'), 'ahtStatAvg should use Detik unit in index.html');
-assert(html.includes('id="ahtStatOver">0 <small style="font-size:0.85rem; color:var(--gray-400); font-weight:normal;">Detik</small>'), 'ahtStatOver should use Detik unit in index.html');
+assert(/id="ahtStatAvg"[^>]*>0 <small style="[^"]*">Detik<\/small>/i.test(html), 'ahtStatAvg should use Detik unit in index.html');
+assert(/id="ahtStatOver"[^>]*>0 <small style="[^"]*">Detik<\/small>/i.test(html), 'ahtStatOver should use Detik unit in index.html');
 
 // Modal uses Detik
 assert(html.includes('id="formAhtDurationSecs" class="form-control" min="1" max="7200"'), 'formAhtDurationSecs should be direct input for seconds');

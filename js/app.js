@@ -1451,7 +1451,7 @@ const PAGE_CONTROL_DEFAULTS = {
     filterTiketScoreSort: 'DATE_DESC'
   },
   aht: {
-    filterAhtMonth: '2026-09',
+    filterAhtMonth: '2026-10',
     filterSummaryAhtUser: 'ALL',
     filterSummaryAhtService: 'ALL',
     filterAhtSummarySort: 'FASTEST',
@@ -1462,7 +1462,7 @@ const PAGE_CONTROL_DEFAULTS = {
     filterAhtSort: 'DATE_DESC'
   },
   art: {
-    filterArtMonth: '2026-09',
+    filterArtMonth: '2026-10',
     filterSummaryArtUser: 'ALL',
     filterSummaryArtService: 'ALL',
     filterArtSummarySort: 'FASTEST',
@@ -1605,8 +1605,8 @@ const DYNAMIC_MONTH_FILTER_CONFIGS = [
   { id: 'filterPaMonth', pageKey: 'update-pa', defaultVal: '2026-09' },
   { id: 'filterCaMonth', pageKey: 'ca', defaultVal: '2026-10' },
   { id: 'filterTiketMonth', pageKey: 'tiket', defaultVal: '2026-10' },
-  { id: 'filterAhtMonth', pageKey: 'aht', defaultVal: '2026-09' },
-  { id: 'filterArtMonth', pageKey: 'art', defaultVal: '2026-09' },
+  { id: 'filterAhtMonth', pageKey: 'aht', defaultVal: '2026-10' },
+  { id: 'filterArtMonth', pageKey: 'art', defaultVal: '2026-10' },
   { id: 'filterFindingMonth', pageKey: 'finding', defaultVal: '2026-09' }
 ];
 
@@ -12645,7 +12645,7 @@ function renderAhtPage() {
   const currentUser = state.currentUser;
   const currentFullName = currentUser ? currentUser.fullName : '';
 
-  const selectedMonth = (UI.filterAhtMonth ? UI.filterAhtMonth.value : '2026-09') || '2026-09';
+  const selectedMonth = (UI.filterAhtMonth ? UI.filterAhtMonth.value : '2026-10') || '2026-10';
   const monthLabel = formatMonthLabel(selectedMonth);
 
   if (UI.ahtMonthHeaderLabel) {
@@ -12904,35 +12904,60 @@ function renderAhtPage() {
       teamTotalInteractions += cnt;
     });
 
-    const teamAvgSec = teamTotalInteractions > 0 ? Math.round(teamTotalDur / teamTotalInteractions) : 222;
+    const hasData = monthLogs.length > 0 && teamTotalInteractions > 0;
+    const teamAvgSec = hasData ? Math.round(teamTotalDur / teamTotalInteractions) : 0;
     const teamDurationFormatted = `${teamTotalDur.toLocaleString('id-ID')}`;
 
-    if (UI.ahtStatAvg) UI.ahtStatAvg.innerHTML = `${teamAvgSec.toLocaleString('id-ID')} <small style="font-size:0.85rem; color:var(--gray-400); font-weight:normal;">Detik</small>`;
-    if (UI.ahtStatAvgSub) UI.ahtStatAvgSub.textContent = `${teamAvgSec} detik rata-rata durasi penanganan`;
+    const card1Label = document.querySelector('#ahtCardMonthlyAvg .metric-label');
+    if (card1Label) card1Label.textContent = 'Rata-rata AHT Tim Bulan Ini';
+    if (UI.ahtStatAvg) {
+      UI.ahtStatAvg.innerHTML = hasData
+        ? `${teamAvgSec.toLocaleString('id-ID')} <small style="font-size:0.85rem; color:var(--gray-400); font-weight:normal;">Detik</small>`
+        : '-';
+    }
+    if (UI.ahtStatAvgSub) {
+      UI.ahtStatAvgSub.textContent = hasData
+        ? `${teamAvgSec} detik rata-rata durasi penanganan`
+        : 'Belum ada data bulan ini';
+    }
 
     const card2Label = document.getElementById('ahtStatCard2Label');
     if (card2Label) card2Label.textContent = 'Total Interaksi Ditangani';
-    if (UI.ahtStatCompliance) UI.ahtStatCompliance.innerHTML = `${teamTotalInteractions.toLocaleString('id-ID')} <small style="font-size:0.85rem; color:var(--gray-400); font-weight:normal;">Sesi</small>`;
-    if (UI.ahtStatComplianceSub) UI.ahtStatComplianceSub.textContent = `${monthLogs.length} total sesi input harian bulan ini`;
+    if (UI.ahtStatCompliance) {
+      UI.ahtStatCompliance.innerHTML = hasData
+        ? `${teamTotalInteractions.toLocaleString('id-ID')} <small style="font-size:0.85rem; color:var(--gray-400); font-weight:normal;">Sesi</small>`
+        : '-';
+    }
+    if (UI.ahtStatComplianceSub) {
+      UI.ahtStatComplianceSub.textContent = hasData
+        ? `${monthLogs.length} total sesi input harian bulan ini`
+        : 'Belum ada data bulan ini';
+    }
 
     const card3Label = document.getElementById('ahtStatCard3Label');
     if (card3Label) card3Label.textContent = 'Total Durasi Penanganan';
-    if (UI.ahtStatOver) UI.ahtStatOver.innerHTML = `${teamDurationFormatted} <small style="font-size:0.85rem; color:var(--gray-400); font-weight:normal;">Detik</small>`;
-    if (UI.ahtStatOverSub) UI.ahtStatOverSub.textContent = `${teamDurationFormatted} detik akumulasi penanganan interaksi`;
+    if (UI.ahtStatOver) {
+      UI.ahtStatOver.innerHTML = hasData
+        ? `${teamDurationFormatted} <small style="font-size:0.85rem; color:var(--gray-400); font-weight:normal;">Detik</small>`
+        : '-';
+    }
+    if (UI.ahtStatOverSub) {
+      UI.ahtStatOverSub.textContent = hasData
+        ? `${teamDurationFormatted} detik akumulasi penanganan interaksi`
+        : 'Belum ada data bulan ini';
+    }
 
     // Card 4: Top Performer User (Fastest agent)
     const validAgents = userSummaries.filter(s => s.daysInput > 0);
-    if (validAgents.length > 0) {
+    if (hasData && validAgents.length > 0) {
       const best = validAgents[0]; // Already sorted FASTEST
       if (UI.ahtStatTopUser) UI.ahtStatTopUser.textContent = best.user.fullName;
       if (UI.ahtStatTopUserSub) UI.ahtStatTopUserSub.textContent = `AHT: ${formatAhtSeconds(best.avgAhtSec)}`;
     } else {
       if (UI.ahtStatTopUser) UI.ahtStatTopUser.textContent = '-';
-      if (UI.ahtStatTopUserSub) UI.ahtStatTopUserSub.textContent = 'Belum ada input bulan ini';
+      if (UI.ahtStatTopUserSub) UI.ahtStatTopUserSub.textContent = 'Belum ada data bulan ini';
     }
 
-    const card1Label = document.querySelector('#ahtCardMonthlyAvg .metric-label');
-    if (card1Label) card1Label.textContent = 'Rata-rata AHT Tim Bulan Ini';
     const card4Label = document.getElementById('ahtStatTopUserLabel');
     if (card4Label) card4Label.textContent = 'Agen Penanganan Tercepat';
   } else {
@@ -12949,29 +12974,54 @@ function renderAhtPage() {
       myTotalInteractions += cnt;
     });
 
-    const myAvgSec = myTotalInteractions > 0 ? Math.round(myTotalDur / myTotalInteractions) : 0;
+    const hasMyData = myDaysInput > 0 && myTotalInteractions > 0;
+    const myAvgSec = hasMyData ? Math.round(myTotalDur / myTotalInteractions) : 0;
     const myDurationFormatted = `${myTotalDur.toLocaleString('id-ID')}`;
 
     const card1Label = document.querySelector('#ahtCardMonthlyAvg .metric-label');
     if (card1Label) card1Label.textContent = 'Rata-rata AHT Saya Bulan Ini';
-    if (UI.ahtStatAvg) UI.ahtStatAvg.innerHTML = `${myDaysInput > 0 ? myAvgSec.toLocaleString('id-ID') : '0'} <small style="font-size:0.85rem; color:var(--gray-400); font-weight:normal;">Detik</small>`;
-    if (UI.ahtStatAvgSub) UI.ahtStatAvgSub.textContent = myDaysInput > 0 ? `${myAvgSec} detik rata-rata durasi (${myDaysInput} hari input)` : 'Belum ada data bulan ini';
+    if (UI.ahtStatAvg) {
+      UI.ahtStatAvg.innerHTML = hasMyData
+        ? `${myAvgSec.toLocaleString('id-ID')} <small style="font-size:0.85rem; color:var(--gray-400); font-weight:normal;">Detik</small>`
+        : '-';
+    }
+    if (UI.ahtStatAvgSub) {
+      UI.ahtStatAvgSub.textContent = hasMyData
+        ? `${myAvgSec} detik rata-rata durasi (${myDaysInput} hari input)`
+        : 'Belum ada data bulan ini';
+    }
 
     const card2Label = document.getElementById('ahtStatCard2Label');
     if (card2Label) card2Label.textContent = 'Total Interaksi Saya';
-    if (UI.ahtStatCompliance) UI.ahtStatCompliance.innerHTML = `${myTotalInteractions.toLocaleString('id-ID')} <small style="font-size:0.85rem; color:var(--gray-400); font-weight:normal;">Sesi</small>`;
-    if (UI.ahtStatComplianceSub) UI.ahtStatComplianceSub.textContent = myDaysInput > 0 ? `Total sesi interaksi yang ditangani` : 'Belum ada data bulan ini';
+    if (UI.ahtStatCompliance) {
+      UI.ahtStatCompliance.innerHTML = hasMyData
+        ? `${myTotalInteractions.toLocaleString('id-ID')} <small style="font-size:0.85rem; color:var(--gray-400); font-weight:normal;">Sesi</small>`
+        : '-';
+    }
+    if (UI.ahtStatComplianceSub) {
+      UI.ahtStatComplianceSub.textContent = hasMyData
+        ? `Total sesi interaksi yang ditangani`
+        : 'Belum ada data bulan ini';
+    }
 
     const card3Label = document.getElementById('ahtStatCard3Label');
     if (card3Label) card3Label.textContent = 'Total Durasi Saya';
-    if (UI.ahtStatOver) UI.ahtStatOver.innerHTML = `${myDaysInput > 0 ? myDurationFormatted : '0'} <small style="font-size:0.85rem; color:var(--gray-400); font-weight:normal;">Detik</small>`;
-    if (UI.ahtStatOverSub) UI.ahtStatOverSub.textContent = myDaysInput > 0 ? `${myDurationFormatted} detik akumulasi pelayanan interaksi` : 'Belum ada data bulan ini';
+    if (UI.ahtStatOver) {
+      UI.ahtStatOver.innerHTML = hasMyData
+        ? `${myDurationFormatted} <small style="font-size:0.85rem; color:var(--gray-400); font-weight:normal;">Detik</small>`
+        : '-';
+    }
+    if (UI.ahtStatOverSub) {
+      UI.ahtStatOverSub.textContent = hasMyData
+        ? `${myDurationFormatted} detik akumulasi pelayanan interaksi`
+        : 'Belum ada data bulan ini';
+    }
 
     const card4Label = document.getElementById('ahtStatTopUserLabel');
     if (card4Label) card4Label.textContent = 'Status Kecepatan Penanganan';
     if (UI.ahtStatTopUser) {
-      if (myDaysInput === 0) {
-        UI.ahtStatTopUser.textContent = 'Belum Ada Input';
+      if (!hasMyData) {
+        UI.ahtStatTopUser.textContent = '-';
       } else if (myAvgSec <= 240) {
         UI.ahtStatTopUser.innerHTML = '<span class="text-green"><i class="fa-solid fa-bolt"></i> Sangat Efisien</span>';
       } else {
@@ -12979,7 +13029,9 @@ function renderAhtPage() {
       }
     }
     if (UI.ahtStatTopUserSub) {
-      UI.ahtStatTopUserSub.textContent = myDaysInput > 0 ? `Rata-rata: ${formatAhtSeconds(myAvgSec)}` : 'Pencatatan dikelola oleh Admin';
+      UI.ahtStatTopUserSub.textContent = hasMyData
+        ? `Rata-rata: ${formatAhtSeconds(myAvgSec)}`
+        : 'Belum ada data bulan ini';
     }
   }
 
@@ -13160,7 +13212,7 @@ function openAddAhtModal() {
 
   // Set default date to today or selected month
   const now = new Date();
-  const selectedMonth = (UI.filterAhtMonth ? UI.filterAhtMonth.value : '2026-09') || '2026-09';
+  const selectedMonth = (UI.filterAhtMonth ? UI.filterAhtMonth.value : '2026-10') || '2026-10';
   const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
   const defaultDate = todayStr.startsWith(selectedMonth) ? todayStr : `${selectedMonth}-15`;
 
@@ -13312,6 +13364,9 @@ function handleSaveAht(e) {
   }
   if (UI.filterAhtMonth && Array.from(UI.filterAhtMonth.options).some(o => o.value === entryMonth)) {
     UI.filterAhtMonth.value = entryMonth;
+    if (typeof saveUserControl === 'function') {
+      saveUserControl('filterAhtMonth', entryMonth);
+    }
   }
 
   closeAhtModal();
@@ -13345,7 +13400,7 @@ window.promptDeleteAllAhtMonth = function() {
     showToast('Akses Ditolak', 'Hanya Administrator yang dapat menghapus data handling time bulanan.', 'warning');
     return;
   }
-  const month = (UI.filterAhtMonth ? UI.filterAhtMonth.value : '2026-09') || '2026-09';
+  const month = (UI.filterAhtMonth ? UI.filterAhtMonth.value : '2026-10') || '2026-10';
   if (!month || month === 'ALL') {
     showToast('Pilih Bulan Spesifik', 'Silakan pilih bulan tertentu terlebih dahulu untuk menghapus data bulanan.', 'warning');
     return;
@@ -13406,7 +13461,7 @@ function exportAhtExcel() {
   const isAdmin = state.isAdmin();
   const currentUser = state.currentUser;
   const currentFullName = currentUser ? currentUser.fullName : '';
-  const selMonth = (UI.filterAhtMonth ? UI.filterAhtMonth.value : '2026-09') || '2026-09';
+  const selMonth = (UI.filterAhtMonth ? UI.filterAhtMonth.value : '2026-10') || '2026-10';
   const allLogs = state.getAhtLogs();
   const users = state.getUsers();
 
@@ -14715,7 +14770,7 @@ function renderArtPage() {
   const currentUser = state.currentUser;
   const currentFullName = currentUser ? currentUser.fullName : '';
 
-  const selectedMonth = (UI.filterArtMonth ? UI.filterArtMonth.value : '2026-09') || '2026-09';
+  const selectedMonth = (UI.filterArtMonth ? UI.filterArtMonth.value : '2026-10') || '2026-10';
   const monthLabel = formatMonthLabel(selectedMonth);
 
   if (UI.artMonthHeaderLabel) {
@@ -15000,30 +15055,55 @@ function renderArtPage() {
       }
     });
 
-    const teamAvgArt = teamTotalInteractions > 0 ? (teamTotalArt / teamTotalInteractions).toFixed(1) : '14.8';
-    const teamAvgFrt = teamTotalInteractions > 0 ? (teamTotalFrt / teamTotalInteractions).toFixed(1) : '8.5';
-    const teamCompPct = monthLogs.length > 0 ? ((teamCompCount / monthLogs.length) * 100).toFixed(1) : '98.6';
+    const hasData = monthLogs.length > 0 && teamTotalInteractions > 0;
+    const teamAvgArt = hasData ? (teamTotalArt / teamTotalInteractions).toFixed(1) : '-';
+    const teamAvgFrt = hasData ? (teamTotalFrt / teamTotalInteractions).toFixed(1) : '-';
+    const teamCompPct = hasData ? ((teamCompCount / monthLogs.length) * 100).toFixed(1) : '-';
 
-    if (UI.artStatAvg) UI.artStatAvg.innerHTML = `${teamAvgArt} <small style="font-size:0.85rem; color:var(--gray-400); font-weight:normal;">Detik</small>`;
-    if (UI.artStatAvgSub) UI.artStatAvgSub.textContent = `Kecepatan respon chat aktif tim`;
-    if (UI.artStatFrt) UI.artStatFrt.innerHTML = `${teamAvgFrt} <small style="font-size:0.85rem; color:var(--gray-400); font-weight:normal;">Detik</small>`;
-    if (UI.artStatFrtSub) UI.artStatFrtSub.textContent = `Waktu sapaan pertama agen ke pelanggan`;
-    if (UI.artStatCompliance) UI.artStatCompliance.textContent = `${teamCompPct}%`;
-    if (UI.artStatComplianceSub) UI.artStatComplianceSub.textContent = `${teamCompCount} dari ${monthLogs.length} sesi input harian patuh SLA`;
+    const card1Label = document.querySelector('#artCardMonthlyAvg .metric-label');
+    if (card1Label) card1Label.textContent = 'Rata-rata ART Tim Bulan Ini';
+    if (UI.artStatAvg) {
+      UI.artStatAvg.innerHTML = hasData
+        ? `${teamAvgArt} <small style="font-size:0.85rem; color:var(--gray-400); font-weight:normal;">Detik</small>`
+        : '-';
+    }
+    if (UI.artStatAvgSub) {
+      UI.artStatAvgSub.textContent = hasData
+        ? `Kecepatan respon chat aktif tim`
+        : 'Belum ada data bulan ini';
+    }
+
+    if (UI.artStatFrt) {
+      UI.artStatFrt.innerHTML = hasData
+        ? `${teamAvgFrt} <small style="font-size:0.85rem; color:var(--gray-400); font-weight:normal;">Detik</small>`
+        : '-';
+    }
+    if (UI.artStatFrtSub) {
+      UI.artStatFrtSub.textContent = hasData
+        ? `Waktu sapaan pertama agen ke pelanggan`
+        : 'Belum ada data bulan ini';
+    }
+
+    if (UI.artStatCompliance) {
+      UI.artStatCompliance.textContent = hasData ? `${teamCompPct}%` : '-';
+    }
+    if (UI.artStatComplianceSub) {
+      UI.artStatComplianceSub.textContent = hasData
+        ? `${teamCompCount} dari ${monthLogs.length} sesi input harian patuh SLA`
+        : 'Belum ada data bulan ini';
+    }
 
     // Card 4: Top Performer User (Fastest compliant agent)
     const validAgents = userSummaries.filter(s => s.daysInput > 0);
-    if (validAgents.length > 0) {
+    if (hasData && validAgents.length > 0) {
       const best = validAgents[0]; // Already sorted FASTEST
       if (UI.artStatTopUser) UI.artStatTopUser.textContent = best.user.fullName;
       if (UI.artStatTopUserSub) UI.artStatTopUserSub.textContent = `ART: ${best.avgArtSec.toFixed(1)}s (${best.complianceRate}% SLA)`;
     } else {
       if (UI.artStatTopUser) UI.artStatTopUser.textContent = '-';
-      if (UI.artStatTopUserSub) UI.artStatTopUserSub.textContent = 'Belum ada input bulan ini';
+      if (UI.artStatTopUserSub) UI.artStatTopUserSub.textContent = 'Belum ada data bulan ini';
     }
 
-    const card1Label = document.querySelector('#artCardMonthlyAvg .metric-label');
-    if (card1Label) card1Label.textContent = 'Rata-rata ART Tim Bulan Ini';
     const card4Label = document.getElementById('artStatTopUserLabel');
     if (card4Label) card4Label.textContent = 'Agen Paling Responsif';
   } else {
@@ -15047,26 +15127,49 @@ function renderArtPage() {
       }
     });
 
-    const myAvgArt = myTotalInteractions > 0 ? (myTotalArt / myTotalInteractions).toFixed(1) : '-';
-    const myAvgFrt = myTotalInteractions > 0 ? (myTotalFrt / myTotalInteractions).toFixed(1) : '-';
-    const myCompPct = myDaysInput > 0 ? ((myCompCount / myDaysInput) * 100).toFixed(1) : '100.0';
+    const hasMyData = myDaysInput > 0 && myTotalInteractions > 0;
+    const myAvgArt = hasMyData ? (myTotalArt / myTotalInteractions).toFixed(1) : '-';
+    const myAvgFrt = hasMyData ? (myTotalFrt / myTotalInteractions).toFixed(1) : '-';
+    const myCompPct = hasMyData ? ((myCompCount / myDaysInput) * 100).toFixed(1) : '-';
 
     const card1Label = document.querySelector('#artCardMonthlyAvg .metric-label');
     if (card1Label) card1Label.textContent = 'Rata-rata ART Saya Bulan Ini';
-    if (UI.artStatAvg) UI.artStatAvg.innerHTML = `${myAvgArt} <small style="font-size:0.85rem; color:var(--gray-400); font-weight:normal;">Detik</small>`;
-    if (UI.artStatAvgSub) UI.artStatAvgSub.textContent = myDaysInput > 0 ? `${myDaysInput} hari input (${myTotalInteractions} sesi)` : 'Belum ada data bulan ini';
+    if (UI.artStatAvg) {
+      UI.artStatAvg.innerHTML = hasMyData
+        ? `${myAvgArt} <small style="font-size:0.85rem; color:var(--gray-400); font-weight:normal;">Detik</small>`
+        : '-';
+    }
+    if (UI.artStatAvgSub) {
+      UI.artStatAvgSub.textContent = hasMyData
+        ? `${myDaysInput} hari input (${myTotalInteractions} sesi)`
+        : 'Belum ada data bulan ini';
+    }
 
-    if (UI.artStatFrt) UI.artStatFrt.innerHTML = `${myAvgFrt} <small style="font-size:0.85rem; color:var(--gray-400); font-weight:normal;">Detik</small>`;
-    if (UI.artStatFrtSub) UI.artStatFrtSub.textContent = 'Respon sapaan pertama akun Anda';
+    if (UI.artStatFrt) {
+      UI.artStatFrt.innerHTML = hasMyData
+        ? `${myAvgFrt} <small style="font-size:0.85rem; color:var(--gray-400); font-weight:normal;">Detik</small>`
+        : '-';
+    }
+    if (UI.artStatFrtSub) {
+      UI.artStatFrtSub.textContent = hasMyData
+        ? 'Respon sapaan pertama akun Anda'
+        : 'Belum ada data bulan ini';
+    }
 
-    if (UI.artStatCompliance) UI.artStatCompliance.textContent = `${myCompPct}%`;
-    if (UI.artStatComplianceSub) UI.artStatComplianceSub.textContent = myDaysInput > 0 ? `${myCompCount} dari ${myDaysInput} hari memenuhi SLA (< 30s)` : 'Standar SLA: < 30 Detik';
+    if (UI.artStatCompliance) {
+      UI.artStatCompliance.textContent = hasMyData ? `${myCompPct}%` : '-';
+    }
+    if (UI.artStatComplianceSub) {
+      UI.artStatComplianceSub.textContent = hasMyData
+        ? `${myCompCount} dari ${myDaysInput} hari memenuhi SLA (< 30s)`
+        : 'Belum ada data bulan ini';
+    }
 
     const card4Label = document.getElementById('artStatTopUserLabel');
     if (card4Label) card4Label.textContent = 'Status Kecepatan Respon';
     if (UI.artStatTopUser) {
-      if (myDaysInput === 0) {
-        UI.artStatTopUser.textContent = 'Belum Ada Input';
+      if (!hasMyData) {
+        UI.artStatTopUser.textContent = '-';
       } else {
         const numAvg = parseFloat(myAvgArt);
         if (numAvg <= 15.0) {
@@ -15079,7 +15182,9 @@ function renderArtPage() {
       }
     }
     if (UI.artStatTopUserSub) {
-      UI.artStatTopUserSub.textContent = myDaysInput > 0 ? `Total ${myTotalInteractions} sesi chat dilayani` : 'Pencatatan dikelola oleh Admin';
+      UI.artStatTopUserSub.textContent = hasMyData
+        ? `Total ${myTotalInteractions} sesi chat dilayani`
+        : 'Belum ada data bulan ini';
     }
   }
 
@@ -15272,7 +15377,7 @@ function openAddArtModal() {
 
   // Set default date to today or selected month
   const now = new Date();
-  const selectedMonth = (UI.filterArtMonth ? UI.filterArtMonth.value : '2026-09') || '2026-09';
+  const selectedMonth = (UI.filterArtMonth ? UI.filterArtMonth.value : '2026-10') || '2026-10';
   const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
   const defaultDate = todayStr.startsWith(selectedMonth) ? todayStr : `${selectedMonth}-15`;
 
@@ -15428,6 +15533,9 @@ function handleSaveArt(e) {
   }
   if (UI.filterArtMonth && Array.from(UI.filterArtMonth.options).some(o => o.value === entryMonth)) {
     UI.filterArtMonth.value = entryMonth;
+    if (typeof saveUserControl === 'function') {
+      saveUserControl('filterArtMonth', entryMonth);
+    }
   }
 
   closeArtModal();
@@ -15461,7 +15569,7 @@ window.promptDeleteAllArtMonth = function() {
     showToast('Akses Ditolak', 'Hanya Administrator yang dapat menghapus data response time bulanan.', 'warning');
     return;
   }
-  const month = (UI.filterArtMonth ? UI.filterArtMonth.value : '2026-09') || '2026-09';
+  const month = (UI.filterArtMonth ? UI.filterArtMonth.value : '2026-10') || '2026-10';
   if (!month || month === 'ALL') {
     showToast('Pilih Bulan Spesifik', 'Silakan pilih bulan tertentu terlebih dahulu untuk menghapus data bulanan.', 'warning');
     return;
@@ -15522,7 +15630,7 @@ function exportArtExcel() {
   const isAdmin = state.isAdmin();
   const currentUser = state.currentUser;
   const currentFullName = currentUser ? currentUser.fullName : '';
-  const selMonth = (UI.filterArtMonth ? UI.filterArtMonth.value : '2026-09') || '2026-09';
+  const selMonth = (UI.filterArtMonth ? UI.filterArtMonth.value : '2026-10') || '2026-10';
   const allLogs = state.getArtLogs();
   const users = state.getUsers();
 
@@ -18220,7 +18328,7 @@ function initEvents() {
     UI.btnResetAhtFilters.addEventListener('click', () => {
       const isAdm = state.isAdmin();
       const myName = state.currentUser ? state.currentUser.fullName : '';
-      if (UI.filterAhtMonth) UI.filterAhtMonth.value = '2026-09';
+      if (UI.filterAhtMonth) UI.filterAhtMonth.value = '2026-10';
       if (UI.filterSummaryAhtUser) UI.filterSummaryAhtUser.value = isAdm ? 'ALL' : myName;
       if (UI.filterSummaryAhtService) UI.filterSummaryAhtService.value = 'ALL';
       if (UI.filterAhtUserSelect) UI.filterAhtUserSelect.value = isAdm ? 'ALL' : myName;
@@ -18378,7 +18486,7 @@ function initEvents() {
     UI.btnResetArtFilters.addEventListener('click', () => {
       const isAdm = state.isAdmin();
       const myName = state.currentUser ? state.currentUser.fullName : '';
-      if (UI.filterArtMonth) UI.filterArtMonth.value = '2026-09';
+      if (UI.filterArtMonth) UI.filterArtMonth.value = '2026-10';
       if (UI.filterSummaryArtUser) UI.filterSummaryArtUser.value = isAdm ? 'ALL' : myName;
       if (UI.filterSummaryArtService) UI.filterSummaryArtService.value = 'ALL';
       if (UI.filterArtUserSelect) UI.filterArtUserSelect.value = isAdm ? 'ALL' : myName;
@@ -23555,6 +23663,12 @@ if (typeof window !== 'undefined') {
   window.deselectAllTiket = deselectAllTiket;
   window.promptDeleteSelectedTiket = promptDeleteSelectedTiket;
   window.promptDeleteAllTiketMonth = promptDeleteAllTiketMonth;
+  window.renderAhtPage = renderAhtPage;
+  window.handleSaveAht = handleSaveAht;
+  window.exportAhtExcel = exportAhtExcel;
+  window.renderArtPage = renderArtPage;
+  window.handleSaveArt = handleSaveArt;
+  window.exportArtExcel = exportArtExcel;
   window.saveUserControl = saveUserControl;
   window.getUserControlValue = getUserControlValue;
   window.getUserControls = getUserControls;
