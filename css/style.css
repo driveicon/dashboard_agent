@@ -10299,6 +10299,13 @@ body.theme-light .overview-sortable-th:hover {
   letter-spacing: 0.5px;
 }
 
-
-
-
+/* ==========================================================================
+   Hidden UI Sections (User Request)
+   - Tiket menu: User Perolehan Terbanyak card
+   - Navbar Clock popup: Sesi Kerja Agen session card
+   ========================================================================== */
+#tiketCardTopUser,
+.clock-session-card,
+#clockSessionCard {
+  display: none !important;
+}

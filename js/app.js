@@ -11423,6 +11423,10 @@ function renderTiketPage() {
     }
   }
 
+  // Sembunyikan card User Perolehan Terbanyak di menu Tiket
+  const tiketCardTopUser = document.getElementById('tiketCardTopUser');
+  if (tiketCardTopUser) tiketCardTopUser.classList.add('hidden');
+
   // ========================================================
   // Section 2: Log Perolehan Tiket Harian (Interval Input Per Hari)
   // (Untuk user: Hanya data perolehan dirinya sendiri yang tampil)
