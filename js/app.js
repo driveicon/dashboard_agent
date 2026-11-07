@@ -4093,7 +4093,7 @@ function syncOverviewUserPreferences(force = false) {
 }
 
 function calculateOverviewCombinedData() {
-  const users = (state.getUsers ? state.getUsers() : []);
+  const users = (state.getUsers ? state.getUsers() : []).filter(u => u && u.role !== 'admin');
   const elMonth = (UI && UI.filterOverviewMonth) || document.getElementById('filterOverviewMonth');
   const selMonth = (elMonth ? elMonth.value : '2026-09') || '2026-09';
 
@@ -8795,7 +8795,7 @@ function renderUserPersonalPaCard(currentUser) {
 
 function renderAdminPaUserGrid() {
   if (!UI.paAdminUserGrid) return;
-  const users = state.getUsers();
+  const users = (state.getUsers ? state.getUsers() : []).filter(u => u && u.role !== 'admin');
   const elMonth = (UI && UI.filterPaMonth) || document.getElementById('filterPaMonth');
   const selectedMonth = (elMonth ? elMonth.value : '2026-09') || '2026-09';
 
@@ -9046,11 +9046,11 @@ function renderUpdatePaPage() {
     if (UI.paTableContainer) UI.paTableContainer.classList.remove('hidden');
     renderAdminPaUserGrid();
 
-    // Populate user filter dropdown for Admin
+    // Populate user filter dropdown for Admin (exclude admin)
     if (UI.filterPaUser) {
       UI.filterPaUser.classList.remove('hidden');
       const curSelected = UI.filterPaUser.value || 'ALL';
-      const users = state.getUsers();
+      const users = (state.getUsers ? state.getUsers() : []).filter(u => u && u.role !== 'admin');
       let opts = '<option value="ALL">Semua Petugas CSO</option>';
       users.forEach(usr => {
         const isSel = (curSelected === usr.fullName || curSelected === usr.id);
@@ -9076,9 +9076,18 @@ function renderUpdatePaPage() {
   }
 
   // Filter logs strictly:
-  // Non-admin user can ONLY see their own logs!
+  // Non-admin user can ONLY see their own logs! Exclude admin user logs from admin view.
+  const allUsersList = state.getUsers ? state.getUsers() : [];
+  const adminNames = new Set(allUsersList.filter(u => u && u.role === 'admin').map(u => String(u.fullName || '').toLowerCase()));
+  const adminIds = new Set(allUsersList.filter(u => u && u.role === 'admin').map(u => String(u.id || '')));
+
   const baseLogs = isAdmin
-    ? allLogs
+    ? allLogs.filter(item => {
+        if (!item) return false;
+        if (item.userId && adminIds.has(String(item.userId))) return false;
+        if (item.userFullName && adminNames.has(String(item.userFullName).toLowerCase())) return false;
+        return true;
+      })
     : allLogs.filter(item => {
         return (item.userId && u && item.userId === u.id) ||
                (item.username && u && item.username === u.username) ||
@@ -9610,8 +9619,10 @@ function renderCaPage() {
     UI.caMonthHeaderLabel.textContent = monthLabel;
   }
 
-  const users = state.getUsers();
-  const logs = state.getCaLogs();
+  const allRawUsers = state.getUsers ? state.getUsers() : [];
+  const users = allRawUsers.filter(u => u && u.role !== 'admin');
+  const adminNames = new Set(allRawUsers.filter(u => u && u.role === 'admin').map(u => String(u.fullName || '').trim().toLowerCase()));
+  const logs = state.getCaLogs ? state.getCaLogs() : [];
 
   if (UI.caUserCountBadge) {
     UI.caUserCountBadge.textContent = `${users.length} User Terdaftar`;
@@ -9800,7 +9811,7 @@ function renderCaPage() {
   const evaluatedMap = new Map();
   monthLogs.forEach(l => {
     const name = (l.userFullName || '').trim();
-    if (!name) return;
+    if (!name || adminNames.has(name.toLowerCase())) return;
     if (!evaluatedMap.has(name)) {
       evaluatedMap.set(name, {
         name,
@@ -9901,6 +9912,7 @@ function renderCaPage() {
   const filteredLogs = monthLogs.filter(item => {
     // Non-admin can strictly ONLY see their own logs
     if (!isAdmin && item.userFullName !== currentFullName) return false;
+    if (adminNames.has(String(item.userFullName || '').trim().toLowerCase())) return false;
 
     if (searchQ) {
       const match = (item.userFullName || '').toLowerCase().includes(searchQ) ||
@@ -10042,8 +10054,8 @@ function openAddCaModal() {
   const todayStr = new Date().toISOString().slice(0, 10);
   if (UI.formCaDate) UI.formCaDate.value = todayStr;
 
-  // Populate users dropdown
-  const users = state.getUsers();
+  // Populate users dropdown (exclude admin)
+  const users = (state.getUsers ? state.getUsers() : []).filter(u => u && u.role !== 'admin');
   if (UI.formCaUserSelect) {
     UI.formCaUserSelect.innerHTML = users.map(u => `<option value="${u.fullName}" data-dept="${u.department || 'CSO INBOUND'}">${u.fullName} (${u.role.toUpperCase()})</option>`).join('');
     if (users.length > 0 && UI.formCaDept) {
@@ -10083,8 +10095,8 @@ window.promptEditCa = function(id) {
 
   if (UI.formCaDate) UI.formCaDate.value = item.date;
 
-  // Populate users dropdown & select current user
-  const users = state.getUsers();
+  // Populate users dropdown & select current user (exclude admin)
+  const users = (state.getUsers ? state.getUsers() : []).filter(u => u && u.role !== 'admin');
   if (UI.formCaUserSelect) {
     UI.formCaUserSelect.innerHTML = users.map(u => `<option value="${u.fullName}" data-dept="${u.department || 'CSO INBOUND'}" ${u.fullName === item.userFullName ? 'selected' : ''}>${u.fullName} (${u.role.toUpperCase()})</option>`).join('');
   }
@@ -10316,7 +10328,7 @@ function exportCaExcel() {
   const currentFullName = currentUser ? currentUser.fullName : '';
   const selMonth = (UI.filterCaMonth ? UI.filterCaMonth.value : '2026-10') || '2026-10';
   const allLogs = state.getCaLogs();
-  const users = state.getUsers();
+  const users = (state.getUsers ? state.getUsers() : []).filter(u => u && u.role !== 'admin');
 
   let exportLogs;
   if (state.selectedCaIds && state.selectedCaIds.size > 0) {
@@ -11144,7 +11156,9 @@ function renderTiketPage() {
 
   const allTikets = state.getTikets();
   const monthLogs = (selectedMonth && selectedMonth !== 'ALL') ? allTikets.filter(l => (l.date || '').startsWith(selectedMonth)) : allTikets;
-  const users = state.getUsers();
+  const allRawUsers = state.getUsers ? state.getUsers() : [];
+  const users = allRawUsers.filter(u => u && u.role !== 'admin');
+  const adminNames = new Set(allRawUsers.filter(u => u && u.role === 'admin').map(u => String(u.fullName || '').trim().toLowerCase()));
 
   // Populate filterSummaryTiketUser in Section 1
   if (UI.filterSummaryTiketUser) {
@@ -11510,6 +11524,7 @@ function renderTiketPage() {
   }
 
   const filteredLogs = monthLogs.filter(item => {
+    if (adminNames.has(String(item.userFullName || '').trim().toLowerCase())) return false;
     // SECURITY / RBAC: Regular user can ONLY see their own ticket logs
     if (!isAdmin) {
       const matchSelf = (item.userFullName === currentFullName) ||
@@ -11660,8 +11675,8 @@ function openAddTiketModal() {
   if (UI.formTiket) UI.formTiket.reset();
   if (UI.formTiketId) UI.formTiketId.value = '';
 
-  // Populate user dropdown
-  const users = state.getUsers();
+  // Populate user dropdown (exclude admin)
+  const users = (state.getUsers ? state.getUsers() : []).filter(u => u && u.role !== 'admin');
   if (UI.formTiketUserSelect) {
     UI.formTiketUserSelect.innerHTML = users.map(u => `<option value="${u.fullName}" data-dept="${u.department || 'CSO INBOUND'}">${u.fullName} (${u.role.toUpperCase()})</option>`).join('');
     if (users.length > 0 && UI.formTiketDept) {
@@ -11690,7 +11705,7 @@ function openEditTiketModal(item) {
     return;
   }
 
-  const users = state.getUsers();
+  const users = (state.getUsers ? state.getUsers() : []).filter(u => u && u.role !== 'admin');
   if (UI.formTiketUserSelect) {
     UI.formTiketUserSelect.innerHTML = users.map(u => `<option value="${u.fullName}" data-dept="${u.department || 'CSO INBOUND'}">${u.fullName} (${u.role.toUpperCase()})</option>`).join('');
     UI.formTiketUserSelect.value = item.userFullName;
@@ -11937,7 +11952,7 @@ function exportTiketExcel() {
   const currentFullName = currentUser ? currentUser.fullName : '';
   const selectedMonth = (UI.filterTiketMonth ? UI.filterTiketMonth.value : '2026-10') || '2026-10';
   const allTikets = state.getTikets();
-  const users = state.getUsers();
+  const users = (state.getUsers ? state.getUsers() : []).filter(u => u && u.role !== 'admin');
 
   let exportLogs;
   if (state.selectedTiketIds && state.selectedTiketIds.size > 0) {
@@ -12711,7 +12726,9 @@ function renderAhtPage() {
 
   const allAhtLogs = state.getAhtLogs();
   const monthLogs = (selectedMonth && selectedMonth !== 'ALL') ? allAhtLogs.filter(l => (l.date || '').startsWith(selectedMonth)) : allAhtLogs;
-  const users = state.getUsers();
+  const allRawUsers = state.getUsers ? state.getUsers() : [];
+  const users = allRawUsers.filter(u => u && u.role !== 'admin');
+  const adminNames = new Set(allRawUsers.filter(u => u && u.role === 'admin').map(u => String(u.fullName || '').trim().toLowerCase()));
 
   // Populate filterSummaryAhtUser in Section 1
   if (UI.filterSummaryAhtUser) {
@@ -13053,6 +13070,7 @@ function renderAhtPage() {
   }
 
   const filteredLogs = monthLogs.filter(item => {
+    if (adminNames.has(String(item.userFullName || '').trim().toLowerCase())) return false;
     // RBAC: Regular user can ONLY see their own logs
     if (!isAdmin) {
       const matchSelf = (item.userFullName === currentFullName) ||
@@ -13201,8 +13219,8 @@ function openAddAhtModal() {
   if (UI.formAht) UI.formAht.reset();
   if (UI.formAhtId) UI.formAhtId.value = '';
 
-  // Populate user dropdown
-  const users = state.getUsers();
+  // Populate user dropdown (exclude admin)
+  const users = (state.getUsers ? state.getUsers() : []).filter(u => u && u.role !== 'admin');
   if (UI.formAhtUserSelect) {
     UI.formAhtUserSelect.innerHTML = users.map(u => `<option value="${u.fullName}" data-dept="${u.department || 'CSO INBOUND'}">${u.fullName} (${u.role.toUpperCase()})</option>`).join('');
     if (users.length > 0 && UI.formAhtDept) {
@@ -13234,7 +13252,7 @@ function openEditAhtModal(item) {
     return;
   }
 
-  const users = state.getUsers();
+  const users = (state.getUsers ? state.getUsers() : []).filter(u => u && u.role !== 'admin');
   if (UI.formAhtUserSelect) {
     UI.formAhtUserSelect.innerHTML = users.map(u => `<option value="${u.fullName}" data-dept="${u.department || 'CSO INBOUND'}">${u.fullName} (${u.role.toUpperCase()})</option>`).join('');
     UI.formAhtUserSelect.value = item.userFullName;
@@ -13463,7 +13481,7 @@ function exportAhtExcel() {
   const currentFullName = currentUser ? currentUser.fullName : '';
   const selMonth = (UI.filterAhtMonth ? UI.filterAhtMonth.value : '2026-10') || '2026-10';
   const allLogs = state.getAhtLogs();
-  const users = state.getUsers();
+  const users = (state.getUsers ? state.getUsers() : []).filter(u => u && u.role !== 'admin');
 
   let exportLogs;
   if (state.selectedAhtIds && state.selectedAhtIds.size > 0) {
@@ -14833,7 +14851,9 @@ function renderArtPage() {
 
   const allArtLogs = state.getArtLogs();
   const monthLogs = (selectedMonth && selectedMonth !== 'ALL') ? allArtLogs.filter(l => (l.date || '').startsWith(selectedMonth)) : allArtLogs;
-  const users = state.getUsers();
+  const allRawUsers = state.getUsers ? state.getUsers() : [];
+  const users = allRawUsers.filter(u => u && u.role !== 'admin');
+  const adminNames = new Set(allRawUsers.filter(u => u && u.role === 'admin').map(u => String(u.fullName || '').trim().toLowerCase()));
 
   // Populate filterSummaryArtUser in Section 1
   if (UI.filterSummaryArtUser) {
@@ -15206,6 +15226,7 @@ function renderArtPage() {
   }
 
   const filteredLogs = monthLogs.filter(item => {
+    if (adminNames.has(String(item.userFullName || '').trim().toLowerCase())) return false;
     // RBAC: Regular user can ONLY see their own logs
     if (!isAdmin) {
       const matchSelf = (item.userFullName === currentFullName) ||
@@ -15366,8 +15387,8 @@ function openAddArtModal() {
   if (UI.formArt) UI.formArt.reset();
   if (UI.formArtId) UI.formArtId.value = '';
 
-  // Populate user dropdown
-  const users = state.getUsers();
+  // Populate user dropdown (exclude admin)
+  const users = (state.getUsers ? state.getUsers() : []).filter(u => u && u.role !== 'admin');
   if (UI.formArtUserSelect) {
     UI.formArtUserSelect.innerHTML = users.map(u => `<option value="${u.fullName}" data-dept="${u.department || 'CSO DIGILIVE CHAT - WA'}">${u.fullName} (${u.role.toUpperCase()})</option>`).join('');
     if (users.length > 0 && UI.formArtDept) {
@@ -15400,7 +15421,7 @@ function openEditArtModal(item) {
     return;
   }
 
-  const users = state.getUsers();
+  const users = (state.getUsers ? state.getUsers() : []).filter(u => u && u.role !== 'admin');
   if (UI.formArtUserSelect) {
     UI.formArtUserSelect.innerHTML = users.map(u => `<option value="${u.fullName}" data-dept="${u.department || 'CSO DIGILIVE CHAT - WA'}">${u.fullName} (${u.role.toUpperCase()})</option>`).join('');
     UI.formArtUserSelect.value = item.userFullName;
@@ -15632,7 +15653,7 @@ function exportArtExcel() {
   const currentFullName = currentUser ? currentUser.fullName : '';
   const selMonth = (UI.filterArtMonth ? UI.filterArtMonth.value : '2026-10') || '2026-10';
   const allLogs = state.getArtLogs();
-  const users = state.getUsers();
+  const users = (state.getUsers ? state.getUsers() : []).filter(u => u && u.role !== 'admin');
 
   let exportLogs;
   if (state.selectedArtIds && state.selectedArtIds.size > 0) {
@@ -16417,10 +16438,26 @@ function renderFindingPage() {
   }
 
   const allFindings = state.getFindings();
+  const allUsersList = state.getUsers ? state.getUsers() : [];
+  const adminFullNames = new Set(allUsersList.filter(u => u && u.role === 'admin').map(u => String(u.fullName || '').trim().toLowerCase()));
+  const adminUserIds = new Set(allUsersList.filter(u => u && u.role === 'admin').map(u => String(u.id || '').trim()));
+  const adminUsernames = new Set(allUsersList.filter(u => u && u.role === 'admin').map(u => String(u.username || '').trim().toLowerCase()));
+
+  const isFindingForAdmin = (f) => {
+    if (!f) return false;
+    if (f.userId && adminUserIds.has(String(f.userId).trim())) return true;
+    if (f.username && adminUsernames.has(String(f.username).trim().toLowerCase())) return true;
+    const name = String(f.userFullName || f.fullName || '').trim().toLowerCase();
+    if (name && adminFullNames.has(name)) return true;
+    return false;
+  };
+
+  const nonAdminFindings = allFindings.filter(f => !isFindingForAdmin(f));
+
   // KHUSUS USER: Hanya user yang mendapatkan finding yang dapat melihatnya (user lain tidak dapat melihat)
   const accessibleFindings = isAdmin
-    ? allFindings
-    : allFindings.filter(f => isFindingForUser(f, currentUser));
+    ? nonAdminFindings
+    : nonAdminFindings.filter(f => isFindingForUser(f, currentUser));
 
   const selectedMonth = (UI.filterFindingMonth ? UI.filterFindingMonth.value : '2026-09') || 'ALL';
   const searchQ = (UI.searchFindingInput ? UI.searchFindingInput.value.trim().toLowerCase() : '');
@@ -16590,8 +16627,8 @@ function openAddFindingModal() {
 
   if (UI.formFinding) UI.formFinding.reset();
 
-  // Populate dropdown Petugas CSO dari seluruh data di Manajemen Team
-  const allTeamUsers = state.getUsers() || [];
+  // Populate dropdown Petugas CSO dari seluruh data di Manajemen Team (kecuali admin)
+  const allTeamUsers = (state.getUsers() || []).filter(usr => usr && usr.role !== 'admin');
   if (UI.formFindingUser) {
     if (allTeamUsers.length > 0) {
       UI.formFindingUser.innerHTML = allTeamUsers.map(usr => {
@@ -16641,8 +16678,8 @@ window.openEditFindingModal = function(id) {
   if (UI.btnSubmitFindingText) UI.btnSubmitFindingText.textContent = 'Perbarui Temuan';
   if (UI.formFindingId) UI.formFindingId.value = item.id;
 
-  // Populate dropdown Petugas CSO dari seluruh data di Manajemen Team
-  const allTeamUsers = state.getUsers() || [];
+  // Populate dropdown Petugas CSO dari seluruh data di Manajemen Team (kecuali admin)
+  const allTeamUsers = (state.getUsers() || []).filter(usr => usr && usr.role !== 'admin');
   if (UI.formFindingUser) {
     const targetName = (item.userFullName || '').trim().toLowerCase();
     let matched = false;
@@ -16870,7 +16907,22 @@ function exportFindingExcel() {
     return;
   }
   const selMonth = (UI.filterFindingMonth ? UI.filterFindingMonth.value : '2026-09') || 'ALL';
-  const allFindings = state.getFindings();
+  const allFindingsRaw = state.getFindings();
+  const allUsersList = state.getUsers ? state.getUsers() : [];
+  const adminFullNames = new Set(allUsersList.filter(u => u && u.role === 'admin').map(u => String(u.fullName || '').trim().toLowerCase()));
+  const adminUserIds = new Set(allUsersList.filter(u => u && u.role === 'admin').map(u => String(u.id || '').trim()));
+  const adminUsernames = new Set(allUsersList.filter(u => u && u.role === 'admin').map(u => String(u.username || '').trim().toLowerCase()));
+
+  const isFindingForAdmin = (f) => {
+    if (!f) return false;
+    if (f.userId && adminUserIds.has(String(f.userId).trim())) return true;
+    if (f.username && adminUsernames.has(String(f.username).trim().toLowerCase())) return true;
+    const name = String(f.userFullName || f.fullName || '').trim().toLowerCase();
+    if (name && adminFullNames.has(name)) return true;
+    return false;
+  };
+
+  const allFindings = allFindingsRaw.filter(f => !isFindingForAdmin(f));
 
   let exportFindings;
   if (state.selectedFindingIds && state.selectedFindingIds.size > 0) {
