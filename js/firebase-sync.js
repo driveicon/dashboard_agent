@@ -66,7 +66,7 @@
           localStorage.setItem('vortex_device_id', storedId);
         }
         this.deviceId = storedId;
-      } catch (e) {}
+      } catch (e) { }
     }
 
     /**
@@ -134,7 +134,7 @@
               const parsedQuizDel = JSON.parse(rawQuizDel);
               if (Array.isArray(parsedQuizDel)) parsedQuizDel.forEach(id => set.add(id));
             }
-          } catch (e) {}
+          } catch (e) { }
           ['QZ-001', 'QZ-002', 'QZ-003', 'QZ-004', 'QZ-005', 'QZ-006', 'QZ-007', 'QZ-008', 'QZ-009', 'QZ-010'].forEach(id => set.add(id));
         } else if (key === 'drive_typing_team_results') {
           ['run_demo_1', 'run_demo_2', 'run_demo_3', 'run_demo_4'].forEach(id => set.add(id));
@@ -174,7 +174,7 @@
           ids.forEach(id => { if (id) set.add(id); });
         }
         localStorage.setItem('vortex_synced_ids_' + key, JSON.stringify([...set]));
-      } catch (e) {}
+      } catch (e) { }
     }
 
     /**
@@ -185,7 +185,7 @@
         const set = this.getKnownSyncedIds(key);
         set.delete(id);
         localStorage.setItem('vortex_synced_ids_' + key, JSON.stringify([...set]));
-      } catch (e) {}
+      } catch (e) { }
     }
 
     /**
@@ -201,7 +201,7 @@
           localStorage.setItem('vortex_deleted_quiz_ids', JSON.stringify([...set]));
         }
         this.removeKnownSyncedId(key, id);
-      } catch (e) {}
+      } catch (e) { }
     }
 
     /**
@@ -216,7 +216,7 @@
         if (key === 'vortex_quiz_questions') {
           localStorage.setItem('vortex_deleted_quiz_ids', JSON.stringify([...set]));
         }
-      } catch (e) {}
+      } catch (e) { }
     }
 
     /**
@@ -239,7 +239,7 @@
                 updatedBy: 'Unload_Sync'
               }, { merge: true });
             }
-          } catch (e) {}
+          } catch (e) { }
         }
       });
     }
@@ -501,16 +501,72 @@
       const cleanLocal = Array.isArray(localArr) ? localArr.filter(l => l && !this.isDummyItem(l) && !deletedIds.has(l.id)) : [];
 
       if (key === 'vortex_users') {
-        if (cleanRemote.length > 0) {
-          // Cloud Firestore adalah sumber kebenaran data terupdate untuk Manajemen Team
-          // Hanya tambahkan user lokal baru jika benar-benar baru dibuat dan bukan akun demo/dummy
-          const localBrandNew = cleanLocal.filter(l => l && l.id && !cleanRemote.some(r => r.id === l.id || (r.username && l.username && r.username.toLowerCase() === l.username.toLowerCase())));
-          if (localBrandNew.length > 0) {
-            return { merged: [...cleanRemote, ...localBrandNew], hasLocalOverrides: true };
+        const DEFAULT_AVATAR = 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80';
+        const isDefaultOrEmptyAvatar = (av) => {
+          if (!av || typeof av !== 'string') return true;
+          const trimmed = av.trim();
+          return !trimmed || trimmed === DEFAULT_AVATAR || trimmed.includes('photo-1534528741775-53994a69daeb');
+        };
+
+        const map = new Map();
+        let hasLocalOverrides = false;
+
+        // 1. Masukkan remote users yang valid
+        cleanRemote.forEach(r => {
+          if (r && (r.id || r.username)) {
+            const keyId = r.id || (r.username && ('uname_' + r.username.toLowerCase()));
+            map.set(keyId, { ...r });
           }
-          return { merged: cleanRemote, hasLocalOverrides: false };
-        }
-        return { merged: cleanLocal, hasLocalOverrides: cleanLocal.length > 0 };
+        });
+
+        // 2. Rekonsiliasi dengan data lokal: Jaga foto profil baru dan pembaruan data pengguna
+        cleanLocal.forEach(l => {
+          if (!l || (!l.id && !l.username)) return;
+          const keyId = l.id || (l.username && ('uname_' + l.username.toLowerCase()));
+          const remoteUser = map.get(keyId) || Array.from(map.values()).find(r =>
+            (r.id && l.id && String(r.id) === String(l.id)) ||
+            (r.username && l.username && r.username.toLowerCase() === l.username.toLowerCase())
+          );
+
+          if (!remoteUser) {
+            // User baru yang dibuat di lokal
+            map.set(l.id || keyId, { ...l });
+            hasLocalOverrides = true;
+          } else {
+            const lTime = Number(l.updatedAt) || 0;
+            const rTime = Number(remoteUser.updatedAt) || 0;
+
+            const localHasCustomAvatar = l.avatar && !isDefaultOrEmptyAvatar(l.avatar);
+            const remoteHasDefaultAvatar = isDefaultOrEmptyAvatar(remoteUser.avatar);
+
+            if (lTime > rTime || (lTime === rTime && localHasCustomAvatar && remoteHasDefaultAvatar)) {
+              // Versi lokal lebih baru atau memiliki avatar custom saat remote masih default
+              map.set(remoteUser.id || keyId, { ...remoteUser, ...l });
+              hasLocalOverrides = true;
+            } else if (rTime > lTime) {
+              const mergedUser = { ...l, ...remoteUser };
+              // Lindungi avatar custom lokal jika remote tidak sengaja mengembalikan ke default
+              if (localHasCustomAvatar && isDefaultOrEmptyAvatar(remoteUser.avatar)) {
+                mergedUser.avatar = l.avatar;
+                hasLocalOverrides = true;
+              }
+              map.set(remoteUser.id || keyId, mergedUser);
+            } else {
+              // Timestamp sama atau keduanya 0: Cek apakah ada perubahan avatar atau field lain
+              const localAvatarChanged = l.avatar && l.avatar !== remoteUser.avatar;
+              if (localAvatarChanged && (localHasCustomAvatar || !remoteHasDefaultAvatar)) {
+                map.set(remoteUser.id || keyId, { ...remoteUser, ...l, avatar: l.avatar });
+                hasLocalOverrides = true;
+              } else if (JSON.stringify(l) !== JSON.stringify(remoteUser)) {
+                map.set(remoteUser.id || keyId, { ...remoteUser, ...l });
+                hasLocalOverrides = true;
+              }
+            }
+          }
+        });
+
+        const merged = Array.from(map.values());
+        return { merged, hasLocalOverrides };
       }
 
       if (key === 'vortex_quiz_questions') {
@@ -608,6 +664,15 @@
               return;
             }
 
+            // 3. Abaikan jika perubahan lokal baru saja disimpan dalam jeda waktu pengaman (debounce/in-flight window)
+            const lastLocalSave = this.skipNextRemote[key] || 0;
+            if (Date.now() - lastLocalSave < 4000) {
+              const remoteActionTime = docData.actionTimestamp || 0;
+              if (remoteActionTime <= lastLocalSave) {
+                return;
+              }
+            }
+
             // Sinkronisasi catatan ID item yang dihapus dari cloud ke lokal
             if (Array.isArray(docData.deletedIds) && docData.deletedIds.length > 0) {
               docData.deletedIds.forEach(dId => this.trackDeletedId(key, dId));
@@ -684,11 +749,18 @@
                 const sbName = document.getElementById('sidebarUserName');
                 const tbName = document.getElementById('topbarUserName');
                 const sbAvatar = document.getElementById('sidebarUserAvatar');
+                const tbAvatar = document.getElementById('topbarUserAvatar');
+                const setAvatar = document.getElementById('settingsUserAvatar');
                 const sbRole = document.getElementById('sidebarUserRoleBadge');
                 if (sbName) sbName.textContent = found.fullName || found.username;
-                if (tbName) tbName.textContent = found.fullName || found.username;
+                if (tbName) tbName.textContent = (found.fullName || found.username).split(' ')[0] || found.fullName;
                 if (sbAvatar && found.avatar) sbAvatar.src = found.avatar;
+                if (tbAvatar && found.avatar) tbAvatar.src = found.avatar;
+                if (setAvatar && found.avatar) setAvatar.src = found.avatar;
                 if (sbRole) sbRole.textContent = (found.role || 'user').toUpperCase();
+                if (typeof window.updateUIForUser === 'function') {
+                  try { window.updateUIForUser(found); } catch (errUI) { }
+                }
               }
             }
           } catch (e) {
@@ -802,7 +874,7 @@
       this.skipNextRemote[key] = Date.now();
       try {
         localStorage.setItem(key + '_updated_at', Date.now().toString());
-      } catch (e) {}
+      } catch (e) { }
 
       // Bersihkan item aktif dari catatan deletedIds jika ada yang dibuat ulang
       if (Array.isArray(data)) {
@@ -820,7 +892,7 @@
               localStorage.setItem('vortex_deleted_ids_' + key, JSON.stringify([...set]));
             }
           }
-        } catch (e) {}
+        } catch (e) { }
       }
 
       // Debounce writes agar tidak spamming jika terjadi multiple changes cepat
@@ -854,7 +926,7 @@
         }
       };
 
-      if (immediate || key === 'vortex_timers' || key === 'vortex_stopwatches' || key === 'vortex_quiz_questions') {
+      if (immediate || key === 'vortex_timers' || key === 'vortex_stopwatches' || key === 'vortex_quiz_questions' || key === 'vortex_users') {
         performSave();
         return;
       }
@@ -1173,7 +1245,7 @@
           const original = state[method].bind(state);
           state[method] = (data) => {
             const result = original(data);
-            const isImmediate = (key === 'vortex_timers' || key === 'vortex_stopwatches');
+            const isImmediate = (key === 'vortex_timers' || key === 'vortex_stopwatches' || key === 'vortex_users');
             this.notifyDataChanged(key, data, isImmediate);
             return result;
           };
@@ -1196,12 +1268,12 @@
         this._storageIntercepted = true;
         const originalSetItem = window.localStorage.setItem.bind(window.localStorage);
         const self = this;
-        window.localStorage.setItem = function(key, value) {
+        window.localStorage.setItem = function (key, value) {
           originalSetItem(key, value);
           if (SYNC_KEYS.includes(key) && !self._suppressSync && self.isConnected) {
             try {
               const parsed = JSON.parse(value);
-              const isImmediate = (key === 'vortex_timers' || key === 'vortex_stopwatches');
+              const isImmediate = (key === 'vortex_timers' || key === 'vortex_stopwatches' || key === 'vortex_users');
               self.notifyDataChanged(key, parsed, isImmediate);
             } catch (e) {
               self.notifyDataChanged(key, value);
@@ -1412,7 +1484,7 @@
           if (window.FirebaseSync && typeof window.FirebaseSync.reRenderCurrentView === 'function') {
             window.FirebaseSync.reRenderCurrentView(e.key);
           }
-        } catch (err) {}
+        } catch (err) { }
       }
     });
   }

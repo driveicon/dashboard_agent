@@ -377,7 +377,7 @@ class AppState {
               return parsedBackup;
             }
           }
-        } catch (e) {}
+        } catch (e) { }
         return fallback;
       }
       const parsed = JSON.parse(raw);
@@ -387,7 +387,7 @@ class AppState {
       try {
         const backup = sessionStorage.getItem('backup_' + key);
         if (backup) return JSON.parse(backup);
-      } catch (err) {}
+      } catch (err) { }
       return fallback;
     }
   }
@@ -398,13 +398,13 @@ class AppState {
       localStorage.setItem(key, serialized);
       try {
         sessionStorage.setItem('backup_' + key, serialized);
-      } catch (e) {}
+      } catch (e) { }
       return true;
     } catch (e) {
       console.error(`[SafeStorage] Gagal menyimpan ${key} ke localStorage:`, e);
       try {
         sessionStorage.setItem('backup_' + key, JSON.stringify(value));
-      } catch (err) {}
+      } catch (err) { }
       return false;
     }
   }
@@ -418,12 +418,12 @@ class AppState {
       set.add(id);
       const serialized = JSON.stringify([...set]);
       localStorage.setItem('vortex_deleted_ids_' + key, serialized);
-      try { sessionStorage.setItem('backup_vortex_deleted_ids_' + key, serialized); } catch (e) {}
+      try { sessionStorage.setItem('backup_vortex_deleted_ids_' + key, serialized); } catch (e) { }
       if (key === 'vortex_quiz_questions') {
         localStorage.setItem('vortex_deleted_quiz_ids', serialized);
-        try { sessionStorage.setItem('backup_vortex_deleted_quiz_ids', serialized); } catch (e) {}
+        try { sessionStorage.setItem('backup_vortex_deleted_quiz_ids', serialized); } catch (e) { }
       }
-    } catch (e) {}
+    } catch (e) { }
 
     if (window.FirebaseSync && typeof window.FirebaseSync.trackDeletedId === 'function') {
       window.FirebaseSync.trackDeletedId(key, id);
@@ -439,12 +439,12 @@ class AppState {
       set.delete(id);
       const serialized = JSON.stringify([...set]);
       localStorage.setItem('vortex_deleted_ids_' + key, serialized);
-      try { sessionStorage.setItem('backup_vortex_deleted_ids_' + key, serialized); } catch (e) {}
+      try { sessionStorage.setItem('backup_vortex_deleted_ids_' + key, serialized); } catch (e) { }
       if (key === 'vortex_quiz_questions') {
         localStorage.setItem('vortex_deleted_quiz_ids', serialized);
-        try { sessionStorage.setItem('backup_vortex_deleted_quiz_ids', serialized); } catch (e) {}
+        try { sessionStorage.setItem('backup_vortex_deleted_quiz_ids', serialized); } catch (e) { }
       }
-    } catch (e) {}
+    } catch (e) { }
 
     if (window.FirebaseSync && typeof window.FirebaseSync.clearDeletedId === 'function') {
       window.FirebaseSync.clearDeletedId(key, id);
@@ -557,7 +557,7 @@ class AppState {
     // Pastikan timer dan stopwatch yang sedang berjalan mengejar waktu sebenarnya saat storage diinisialisasi
     try {
       this.catchUpTimersAndStopwatches();
-    } catch (e) {}
+    } catch (e) { }
 
     // Auto-purge data lama atau default (Siti Rahma, Ahmad Fauzi, Dewi Lestari, Budi Santoso) dari localStorage
     try {
@@ -572,7 +572,7 @@ class AppState {
       if (rawUsers) {
         const parsedUsers = JSON.parse(rawUsers);
         if (Array.isArray(parsedUsers)) {
-          const cleaned = parsedUsers.filter(u => 
+          const cleaned = parsedUsers.filter(u =>
             u && !dummyUserIds.has(u.id) &&
             !dummyUsernames.has((u.username || '').toLowerCase()) &&
             !dummyNames.has((u.fullName || '').toLowerCase().trim())
@@ -591,7 +591,7 @@ class AppState {
         try {
           localStorage.removeItem('quiz_active_session_' + uid);
           localStorage.removeItem('quiz_selected_hero_' + uid);
-        } catch (e) {}
+        } catch (e) { }
       });
 
       const keysToClean = [
@@ -625,7 +625,7 @@ class AppState {
                 localStorage.setItem(k, JSON.stringify(filtered));
               }
             }
-          } catch (e) {}
+          } catch (e) { }
         }
       });
     } catch (e) {
@@ -890,8 +890,8 @@ class AppState {
   addLog(actionType, actionBadge, details, status = 'Sukses') {
     const logs = this.getLogs();
     const now = new Date();
-    const formattedDate = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
-    
+    const formattedDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+
     const newLog = {
       id: 'log_' + Date.now(),
       timestamp: formattedDate,
@@ -978,7 +978,7 @@ class AppState {
       'vortex_items', 'vortex_users', 'vortex_quiz_questions'
     ];
     syncKeys.forEach(k => {
-      try { localStorage.removeItem('vortex_deleted_ids_' + k); } catch (e) {}
+      try { localStorage.removeItem('vortex_deleted_ids_' + k); } catch (e) { }
     });
 
     if (this.currentUser) {
@@ -1190,8 +1190,8 @@ function applyTheme(themeKey, notify = false) {
   if (notify) {
     showToast(
       'Tema Warna Diperbarui',
-      palette.isDefault 
-        ? 'Tema akun ini dikembalikan ke warna Merah (Default).' 
+      palette.isDefault
+        ? 'Tema akun ini dikembalikan ke warna Merah (Default).'
         : `Warna akun ini berhasil diubah ke tema ${palette.name}. Akun lain tidak terpengaruh.`,
       'success'
     );
@@ -1699,7 +1699,7 @@ function getUserControls(user) {
       const parsed = JSON.parse(raw);
       if (parsed && typeof parsed === 'object') return parsed;
     }
-  } catch (e) {}
+  } catch (e) { }
   return {};
 }
 
@@ -1710,7 +1710,7 @@ function saveUserControl(controlId, value, user) {
     const controls = getUserControls(user);
     controls[controlId] = value;
     localStorage.setItem('drive_user_controls_' + username, JSON.stringify(controls));
-  } catch (e) {}
+  } catch (e) { }
 }
 
 function getUserControlValue(controlId, defaultValue = '', user) {
@@ -2769,7 +2769,7 @@ function showToast(title, message, type = 'info') {
   if (!window.UI || !window.UI.toastContainer) return;
   const toast = document.createElement('div');
   toast.className = `toast toast-${type}`;
-  
+
   let iconHtml = '<i class="fa-solid fa-circle-info toast-icon"></i>';
   if (type === 'success') iconHtml = '<i class="fa-solid fa-circle-check toast-icon"></i>';
   if (type === 'danger') iconHtml = '<i class="fa-solid fa-circle-exclamation toast-icon"></i>';
@@ -2840,7 +2840,7 @@ function updateClockDropdownLive(now = new Date()) {
   const hrs = String(now.getHours()).padStart(2, '0');
   const mins = String(now.getMinutes()).padStart(2, '0');
   const secs = String(now.getSeconds()).padStart(2, '0');
-  
+
   if (UI.clockPopupMainTime) {
     UI.clockPopupMainTime.textContent = `${hrs}:${mins}:${secs}`;
   }
@@ -2854,7 +2854,7 @@ function updateClockDropdownLive(now = new Date()) {
   if (UI.tzTimeWIB) {
     UI.tzTimeWIB.textContent = `${hrs}:${mins}:${secs}`;
   }
-  
+
   // WITA: GMT+8
   if (UI.tzTimeWITA) {
     const witaDate = new Date(now.getTime() + (1 * 60 * 60 * 1000));
@@ -2957,11 +2957,11 @@ function renderClockCalendar(targetDate = new Date()) {
 window.updateClockDropdownLive = updateClockDropdownLive;
 window.renderClockCalendar = renderClockCalendar;
 
-window.openFloatingClockWindow = async function() {
+window.openFloatingClockWindow = async function () {
   if (window.vortexFloatingClockWindow && !window.vortexFloatingClockWindow.closed) {
     try {
       window.vortexFloatingClockWindow.focus();
-    } catch (e) {}
+    } catch (e) { }
     return;
   }
 
@@ -3015,11 +3015,11 @@ window.openFloatingClockWindow = async function() {
   }
 };
 
-window.closeFloatingClockWindow = function() {
+window.closeFloatingClockWindow = function () {
   if (window.vortexFloatingClockWindow && !window.vortexFloatingClockWindow.closed) {
     try {
       window.vortexFloatingClockWindow.close();
-    } catch (e) {}
+    } catch (e) { }
   }
   window.vortexFloatingClockWindow = null;
 };
@@ -3333,11 +3333,25 @@ async function handleLogin(username, password) {
         }
 
         if (Array.isArray(cloudUsers) && cloudUsers.length > 0) {
-          const cleanUsers = cloudUsers.filter(u => 
-            u && !['usr_user_1', 'usr_user_2', 'usr_admin_2'].includes(u.id) &&
-            !['user', 'ahmad_fauzi', 'dewi_lestari'].includes((u.username || '').toLowerCase()) &&
-            !['siti rahma', 'ahmad fauzi', 'dewi lestari, m.t.', 'dewi lestari', 'budi santoso, s.kom', 'budi santoso'].includes((u.fullName || '').toLowerCase().trim())
-          );
+          const storedLocalUsers = state.getUsers();
+          const deletedIds = (window.FirebaseSync && typeof window.FirebaseSync.getDeletedIds === 'function')
+            ? window.FirebaseSync.getDeletedIds('vortex_users')
+            : new Set(['usr_user_1', 'usr_user_2', 'usr_admin_2']);
+
+          let cleanUsers = cloudUsers;
+          if (window.FirebaseSync && typeof window.FirebaseSync.mergeCollections === 'function') {
+            const { merged, hasLocalOverrides } = window.FirebaseSync.mergeCollections('vortex_users', storedLocalUsers, cloudUsers, deletedIds);
+            cleanUsers = merged;
+            if (hasLocalOverrides && window.FirebaseSync.notifyDataChanged) {
+              window.FirebaseSync.notifyDataChanged('vortex_users', cleanUsers, true);
+            }
+          } else {
+            cleanUsers = cloudUsers.filter(u =>
+              u && !['usr_user_1', 'usr_user_2', 'usr_admin_2'].includes(u.id) &&
+              !['user', 'ahmad_fauzi', 'dewi_lestari'].includes((u.username || '').toLowerCase()) &&
+              !['siti rahma', 'ahmad fauzi', 'dewi lestari, m.t.', 'dewi lestari', 'budi santoso, s.kom', 'budi santoso'].includes((u.fullName || '').toLowerCase().trim())
+            );
+          }
           state.saveUsers(cleanUsers);
           users = cleanUsers;
           user = users.find(u => u.username && u.username.toLowerCase() === username.trim().toLowerCase());
@@ -3499,7 +3513,7 @@ function renderAppView() {
   // Sidebar profile & mode notice
   UI.sidebarUserName.textContent = u.fullName;
   UI.sidebarUserAvatar.src = u.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80';
-  
+
   if (isAdmin) {
     UI.sidebarUserRoleBadge.classList.remove('hidden');
     UI.sidebarUserRoleBadge.className = 'badge badge-admin';
@@ -4037,7 +4051,7 @@ function getOverviewUserPref() {
         return parsed;
       }
     }
-  } catch (e) {}
+  } catch (e) { }
   return {
     category: 'ALL',
     month: '2026-09',
@@ -4052,7 +4066,7 @@ function saveOverviewUserPref(prefUpdate) {
     const current = getOverviewUserPref();
     const updated = Object.assign({}, current, prefUpdate);
     localStorage.setItem(getOverviewUserStorageKey(), JSON.stringify(updated));
-  } catch (e) {}
+  } catch (e) { }
 }
 
 function syncOverviewUserPreferences(force = false) {
@@ -4473,7 +4487,7 @@ function updateOverviewLegendAndTitles() {
   }
 }
 
-window.promptDeleteAllOverviewMonth = function() {
+window.promptDeleteAllOverviewMonth = function () {
   if (!state.isAdmin()) {
     showToast('Akses Dibatasi', 'Hanya Administrator yang memiliki wewenang untuk menghapus seluruh data bulan ini.', 'danger');
     return;
@@ -4534,8 +4548,8 @@ function renderOverviewPage() {
   const filtered = data.filter(item => {
     if (!query) return true;
     return (item.fullName && item.fullName.toLowerCase().includes(query)) ||
-           (item.department && item.department.toLowerCase().includes(query)) ||
-           (item.email && item.email.toLowerCase().includes(query));
+      (item.department && item.department.toLowerCase().includes(query)) ||
+      (item.email && item.email.toLowerCase().includes(query));
   });
 
   // Determine active sort key
@@ -4949,11 +4963,11 @@ function renderOverviewPage() {
         </td>
         <td style="text-align: center;">
           ${(item.caAvg >= 85 && item.tiketCount >= 1056 && item.avgArtSec <= 30)
-            ? '<span class="badge badge-green"><i class="fa-solid fa-star"></i> Prima</span>'
-            : (item.caAvg >= 80 || item.tiketCount >= 900)
-              ? '<span class="badge badge-yellow"><i class="fa-solid fa-circle-check"></i> Baik</span>'
-              : '<span class="badge badge-red"><i class="fa-solid fa-circle-exclamation"></i> Evaluasi</span>'
-          }
+          ? '<span class="badge badge-green"><i class="fa-solid fa-star"></i> Prima</span>'
+          : (item.caAvg >= 80 || item.tiketCount >= 900)
+            ? '<span class="badge badge-yellow"><i class="fa-solid fa-circle-check"></i> Baik</span>'
+            : '<span class="badge badge-red"><i class="fa-solid fa-circle-exclamation"></i> Evaluasi</span>'
+        }
         </td>
       `;
     }
@@ -4987,8 +5001,8 @@ function getLogIcon(type) {
 function renderCharts(items) {
   if (typeof Chart === 'undefined') return;
 
-  const curPalette = (typeof THEME_PALETTES !== 'undefined' && THEME_PALETTES[state.currentTheme]) 
-    ? THEME_PALETTES[state.currentTheme] 
+  const curPalette = (typeof THEME_PALETTES !== 'undefined' && THEME_PALETTES[state.currentTheme])
+    ? THEME_PALETTES[state.currentTheme]
     : { primary: '#e62e44', hover: '#ff3851', dark: '#b81427', rgb: '230, 46, 68' };
 
   // Monthly Chart
@@ -5131,7 +5145,7 @@ function getFilteredData() {
   // Search filter
   if (state.searchQuery.trim()) {
     const q = state.searchQuery.toLowerCase();
-    items = items.filter(i => 
+    items = items.filter(i =>
       i.code.toLowerCase().includes(q) ||
       i.name.toLowerCase().includes(q) ||
       i.category.toLowerCase().includes(q) ||
@@ -5196,7 +5210,7 @@ function renderDataTable() {
 
   UI.dataTableBody.innerHTML = pageItems.map((item, index) => {
     const rowNo = startIdx + index + 1;
-    
+
     // ACTION COLUMN LOGIC:
     // If Admin: Edit (Pencil) & Delete (Trash)
     // If User: View Detail (Eye) ONLY
@@ -5276,7 +5290,7 @@ function renderPagination(totalPages) {
   UI.paginationControls.innerHTML = html;
 }
 
-window.changeDataPage = function(page) {
+window.changeDataPage = function (page) {
   state.currentDataPage = page;
   if (typeof saveUserControl === 'function') {
     saveUserControl('dataCurrentPage', page);
@@ -5307,7 +5321,7 @@ function openAddItemModal() {
   UI.modalDataForm.classList.remove('hidden');
 }
 
-window.openEditItemModal = function(id) {
+window.openEditItemModal = function (id) {
   if (!state.isAdmin()) {
     showToast('Akses Ditolak', 'Hanya Administrator yang memiliki izin untuk mengubah data.', 'danger');
     return;
@@ -5363,7 +5377,7 @@ function handleSaveDataItem(e) {
 
   const items = state.getItems();
   const now = new Date();
-  const formattedDate = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+  const formattedDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
 
   if (id) {
     // EDIT EXISTING ITEM
@@ -5415,7 +5429,7 @@ function handleSaveDataItem(e) {
 }
 
 // VIEW DETAIL MODAL (Available to both Admin and User)
-window.openViewDetailModal = function(id) {
+window.openViewDetailModal = function (id) {
   const items = state.getItems();
   const item = items.find(i => i.id === id);
   if (!item) return;
@@ -5440,7 +5454,7 @@ function closeViewDetailModal() {
 }
 
 // DELETE ITEM MODAL
-window.promptDeleteItem = function(id, name) {
+window.promptDeleteItem = function (id, name) {
   if (!state.isAdmin()) {
     showToast('Akses Ditolak', 'Hanya Administrator yang memiliki hak izin menghapus barang.', 'danger');
     return;
@@ -5603,7 +5617,7 @@ function executePendingDelete() {
       const allRuns = JSON.parse(localStorage.getItem('drive_typing_team_results') || '[]');
       const filteredRuns = allRuns.filter(r => !isMatchUser(r));
       localStorage.setItem('drive_typing_team_results', JSON.stringify(filteredRuns));
-    } catch (e) {}
+    } catch (e) { }
 
     // 11. Hapus seluruh preferensi tersimpan akun user di localStorage
     if (targetUsername) {
@@ -5939,7 +5953,7 @@ function renderUserManagementPage() {
   const dummyUserIds = new Set(['usr_user_1', 'usr_user_2', 'usr_admin_2']);
   const dummyUsernames = new Set(['user', 'ahmad_fauzi', 'dewi_lestari']);
   const dummyNames = new Set(['siti rahma', 'ahmad fauzi', 'dewi lestari, m.t.', 'dewi lestari']);
-  const users = allRawUsers.filter(u => 
+  const users = allRawUsers.filter(u =>
     u && !dummyUserIds.has(u.id) &&
     !dummyUsernames.has((u.username || '').toLowerCase()) &&
     !dummyNames.has((u.fullName || '').toLowerCase().trim())
@@ -5947,7 +5961,7 @@ function renderUserManagementPage() {
   if (users.length !== allRawUsers.length) {
     state.saveUsers(users);
   }
-  
+
   // Calculate user counts
   const adminCount = users.filter(u => u.role === 'admin').length;
   const userCount = users.filter(u => u.role === 'user').length;
@@ -5966,7 +5980,7 @@ function renderUserManagementPage() {
   const serviceFilter = UI.filterUserService ? UI.filterUserService.value : 'ALL';
 
   let filteredUsers = users.filter(u => {
-    const matchesSearch = !searchQ || 
+    const matchesSearch = !searchQ ||
       u.fullName.toLowerCase().includes(searchQ) ||
       u.username.toLowerCase().includes(searchQ) ||
       u.email.toLowerCase().includes(searchQ) ||
@@ -5982,7 +5996,7 @@ function renderUserManagementPage() {
       (u.id && state.currentUser.id && String(state.currentUser.id) === String(u.id)) ||
       (state.currentUser.username && u.username && state.currentUser.username.toLowerCase() === u.username.toLowerCase())
     );
-    const roleBadge = u.role === 'admin' 
+    const roleBadge = u.role === 'admin'
       ? '<span class="badge badge-admin"><i class="fa-solid fa-crown"></i> Administrator</span>'
       : '<span class="badge badge-user"><i class="fa-solid fa-user"></i> Pengguna Biasa</span>';
 
@@ -6051,11 +6065,12 @@ function openRegisterUserModal() {
 
   UI.registerUserForm.reset();
   if (UI.regUserId) UI.regUserId.value = '';
-  
+
   const defaultAvatar = 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80';
   if (UI.regAvatarPreview) UI.regAvatarPreview.src = defaultAvatar;
   if (UI.regAvatarData) UI.regAvatarData.value = defaultAvatar;
   if (UI.regAvatarUrl) UI.regAvatarUrl.value = '';
+  if (UI.regAvatarFileInput) UI.regAvatarFileInput.value = '';
 
   if (UI.regPassword) {
     UI.regPassword.required = true;
@@ -6079,7 +6094,7 @@ function openRegisterUserModal() {
   UI.modalRegisterUser.classList.remove('hidden');
 }
 
-window.openEditUserModal = function(id) {
+window.openEditUserModal = function (id) {
   if (!state.isAdmin()) {
     showToast('Akses Ditolak', 'Hanya Administrator yang dapat mengubah data anggota team.', 'danger');
     return;
@@ -6098,7 +6113,7 @@ window.openEditUserModal = function(id) {
   if (UI.regUsername) UI.regUsername.value = user.username || '';
   if (UI.regEmail) UI.regEmail.value = user.email || '';
   if (UI.regRole) UI.regRole.value = user.role || 'user';
-  
+
   const deptVal = user.department || (user.role === 'admin' ? 'ADMINISTRATOR' : 'CSO INBOUND');
   if (UI.regDept) {
     let exists = false;
@@ -6121,6 +6136,7 @@ window.openEditUserModal = function(id) {
   if (UI.regAvatarPreview) UI.regAvatarPreview.src = avatarSrc;
   if (UI.regAvatarData) UI.regAvatarData.value = avatarSrc;
   if (UI.regAvatarUrl) UI.regAvatarUrl.value = (user.avatar && user.avatar.startsWith('http')) ? user.avatar : '';
+  if (UI.regAvatarFileInput) UI.regAvatarFileInput.value = '';
 
   if (UI.regPassword) {
     UI.regPassword.required = false;
@@ -6144,6 +6160,7 @@ window.openEditUserModal = function(id) {
 
 function closeRegisterUserModal() {
   UI.modalRegisterUser.classList.add('hidden');
+  if (UI.regAvatarFileInput) UI.regAvatarFileInput.value = '';
 }
 
 function updateRoleExplanation() {
@@ -6197,11 +6214,22 @@ function handleRegisterUserSubmit(e) {
 
   const users = state.getUsers();
 
-  // Determine avatar
-  let avatar = (UI.regAvatarData && UI.regAvatarData.value.trim()) || 
-               (UI.regAvatarUrl && UI.regAvatarUrl.value.trim()) || 
-               (UI.regAvatarPreview ? UI.regAvatarPreview.src : '') || 
-               'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80';
+  // Determine avatar with preservation of existing avatar
+  let avatar = (UI.regAvatarData && UI.regAvatarData.value.trim()) ||
+    (UI.regAvatarUrl && UI.regAvatarUrl.value.trim());
+
+  if (!avatar && editId) {
+    const existingUser = users.find(u => (u.id && String(u.id) === String(editId)) || (u.username && u.username.toLowerCase() === String(editId).toLowerCase()));
+    if (existingUser && existingUser.avatar) {
+      avatar = existingUser.avatar;
+    }
+  }
+
+  if (!avatar) {
+    avatar = (UI.regAvatarPreview && UI.regAvatarPreview.src && !UI.regAvatarPreview.src.includes('photo-1534528741775-53994a69daeb'))
+      ? UI.regAvatarPreview.src
+      : 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80';
+  }
 
   if (editId) {
     // ==================== EDIT MODE ====================
@@ -6229,12 +6257,14 @@ function handleRegisterUserSubmit(e) {
     }
 
     const oldUsername = targetUser.username;
+    const nowTime = Date.now();
     targetUser.fullName = fullName;
     targetUser.username = username;
     targetUser.email = email;
     targetUser.role = role;
     targetUser.department = department;
     targetUser.avatar = avatar;
+    targetUser.updatedAt = nowTime;
 
     if (password && password.trim().length > 0) {
       if (password.length < 6) {
@@ -6257,6 +6287,7 @@ function handleRegisterUserSubmit(e) {
       state.currentUser.role = role;
       state.currentUser.department = department;
       state.currentUser.avatar = avatar;
+      state.currentUser.updatedAt = nowTime;
       if (password && password.trim().length > 0) {
         state.currentUser.password = password;
       }
@@ -6264,8 +6295,9 @@ function handleRegisterUserSubmit(e) {
 
       if (UI.sidebarUserName) UI.sidebarUserName.textContent = fullName;
       if (UI.sidebarUserAvatar) UI.sidebarUserAvatar.src = avatar;
-      if (UI.topbarUserName) UI.topbarUserName.textContent = fullName;
+      if (UI.topbarUserName) UI.topbarUserName.textContent = fullName.split(' ')[0] || fullName;
       if (UI.topbarUserAvatar) UI.topbarUserAvatar.src = avatar;
+      if (UI.settingsUserAvatar) UI.settingsUserAvatar.src = avatar;
       if (UI.sidebarUserRoleBadge) UI.sidebarUserRoleBadge.textContent = role.toUpperCase();
     }
 
@@ -6307,7 +6339,7 @@ function handleRegisterUserSubmit(e) {
   }
 
   const now = new Date();
-  const formattedDate = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+  const formattedDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
 
   const newUser = {
     id: 'usr_' + Date.now(),
@@ -6319,7 +6351,8 @@ function handleRegisterUserSubmit(e) {
     department: department || 'CSO INBOUND',
     status: 'active',
     avatar,
-    createdAt: formattedDate
+    createdAt: formattedDate,
+    updatedAt: Date.now()
   };
 
   users.push(newUser);
@@ -6337,7 +6370,7 @@ function handleRegisterUserSubmit(e) {
   if (state.currentPage === 'overview') renderOverviewPage();
 }
 
-window.toggleUserStatus = function(id) {
+window.toggleUserStatus = function (id) {
   if (!state.isAdmin()) return;
 
   const users = state.getUsers();
@@ -6369,7 +6402,7 @@ window.toggleUserStatus = function(id) {
   renderUserManagementPage();
 };
 
-window.promptDeleteUser = function(id, name) {
+window.promptDeleteUser = function (id, name) {
   if (!state.isAdmin()) return;
 
   if (state.currentUser && state.currentUser.id === id) {
@@ -6486,7 +6519,7 @@ function renderAuditLogs() {
   const typeFilter = UI.filterLogType ? UI.filterLogType.value : 'ALL';
 
   const filtered = logs.filter(log => {
-    const matchesSearch = !searchQ || 
+    const matchesSearch = !searchQ ||
       log.user.toLowerCase().includes(searchQ) ||
       log.details.toLowerCase().includes(searchQ) ||
       log.actionBadge.toLowerCase().includes(searchQ);
@@ -6597,7 +6630,7 @@ function formatSecondsToHMS(totalSec) {
 }
 
 // Perhitungan sisa waktu countdown realtime akurat nol drift lintas device
-window.getTimerRemainingSeconds = function(timer, now = Date.now()) {
+window.getTimerRemainingSeconds = function (timer, now = Date.now()) {
   if (!timer) return 0;
   if (!timer.isRunning) {
     return Math.max(0, Number(timer.remainingSeconds) || 0);
@@ -6617,7 +6650,7 @@ window.getTimerRemainingSeconds = function(timer, now = Date.now()) {
 };
 
 // Perhitungan elapsed time stopwatch realtime akurat nol drift lintas device
-window.getStopwatchElapsedSeconds = function(sw, now = Date.now()) {
+window.getStopwatchElapsedSeconds = function (sw, now = Date.now()) {
   if (!sw) return 0;
   if (!sw.isRunning) {
     return Math.max(0, Number(sw.elapsedSeconds) || 0);
@@ -6634,7 +6667,7 @@ window.getStopwatchElapsedSeconds = function(sw, now = Date.now()) {
 };
 
 // Tambah durasi cepat (+1 menit / +5 menit) sinkron lintas perangkat
-window.addTimerQuickSeconds = function(id, secondsToAdd = 60) {
+window.addTimerQuickSeconds = function (id, secondsToAdd = 60) {
   if (!state.currentUser) return;
   const timers = state.getTimers();
   const timer = timers.find(t => t.id === id);
@@ -6721,8 +6754,8 @@ function renderTimerPage() {
       UI.countdownTimersContainer.innerHTML = personalTimers.map(timer => {
         const remaining = window.getTimerRemainingSeconds(timer);
         const isCompleted = remaining === 0;
-        const percent = timer.totalSeconds > 0 
-          ? Math.max(0, Math.min(100, Math.round((remaining / timer.totalSeconds) * 100))) 
+        const percent = timer.totalSeconds > 0
+          ? Math.max(0, Math.min(100, Math.round((remaining / timer.totalSeconds) * 100)))
           : 0;
 
         let statusBadge = '';
@@ -6896,8 +6929,8 @@ function renderAdminTimerMonitor(allTimers, allStopwatches) {
 
     const remaining = window.getTimerRemainingSeconds(t);
     const isCompleted = remaining === 0;
-    const percent = t.totalSeconds > 0 
-      ? Math.max(0, Math.min(100, Math.round((remaining / t.totalSeconds) * 100))) 
+    const percent = t.totalSeconds > 0
+      ? Math.max(0, Math.min(100, Math.round((remaining / t.totalSeconds) * 100)))
       : 0;
 
     monitorItems.push({
@@ -7100,7 +7133,7 @@ function openAddTimerModal() {
   UI.modalTimerForm.classList.remove('hidden');
 }
 
-window.openEditTimerModal = function(id) {
+window.openEditTimerModal = function (id) {
   if (!state.currentUser) return;
   const timers = state.getTimers();
   const timer = timers.find(t => t.id === id);
@@ -7267,7 +7300,7 @@ function handleSaveTimer(e) {
   renderTimerPage();
 }
 
-window.toggleTimerRunning = function(id) {
+window.toggleTimerRunning = function (id) {
   if (!state.currentUser) return;
   const timers = state.getTimers();
   const timer = timers.find(t => t.id === id);
@@ -7329,7 +7362,7 @@ window.toggleTimerRunning = function(id) {
   }
 };
 
-window.resetTimer = function(id) {
+window.resetTimer = function (id) {
   if (!state.currentUser) return;
   const timers = state.getTimers();
   const timer = timers.find(t => t.id === id);
@@ -7379,7 +7412,7 @@ window.resetTimer = function(id) {
   }
 };
 
-window.promptDeleteTimer = function(id, name) {
+window.promptDeleteTimer = function (id, name) {
   if (!state.currentUser) return;
   const timers = state.getTimers();
   const timer = timers.find(t => t.id === id);
@@ -7483,7 +7516,7 @@ function handleSaveStopwatch(e) {
   }
 }
 
-window.toggleStopwatchRunning = function(id) {
+window.toggleStopwatchRunning = function (id) {
   if (!state.currentUser) return;
   const stopwatches = state.getStopwatches();
   const sw = stopwatches.find(s => s.id === id);
@@ -7534,7 +7567,7 @@ window.toggleStopwatchRunning = function(id) {
   }
 };
 
-window.resetStopwatch = function(id) {
+window.resetStopwatch = function (id) {
   if (!state.currentUser) return;
   const stopwatches = state.getStopwatches();
   const sw = stopwatches.find(s => s.id === id);
@@ -7580,7 +7613,7 @@ window.resetStopwatch = function(id) {
   }
 };
 
-window.promptDeleteStopwatch = function(id, name) {
+window.promptDeleteStopwatch = function (id, name) {
   if (!state.currentUser) return;
   const stopwatches = state.getStopwatches();
   const sw = stopwatches.find(s => s.id === id);
@@ -7601,7 +7634,7 @@ window.promptDeleteStopwatch = function(id, name) {
 // REAL-TIME TICKER (TIMERS, STOPWATCHES & ADMIN MONITOR)
 // ------------------------------------------
 
-window.catchUpTimersAndStopwatches = function() {
+window.catchUpTimersAndStopwatches = function () {
   if (!state || typeof state.getTimers !== 'function') return false;
   let changed = false;
   const now = Date.now();
@@ -7798,7 +7831,7 @@ window.floatingActiveTab = 'timer'; // 'timer' | 'stopwatch' | 'both'
 window.floatingSelectedTimerId = null;
 window.floatingSelectedSwId = null;
 
-window.openFloatingTimerWindow = async function(preferredType = 'timer', preferredId = null) {
+window.openFloatingTimerWindow = async function (preferredType = 'timer', preferredId = null) {
   if (preferredType) window.floatingActiveTab = preferredType;
   if (preferredType === 'timer' && preferredId) window.floatingSelectedTimerId = preferredId;
   if (preferredType === 'stopwatch' && preferredId) window.floatingSelectedSwId = preferredId;
@@ -7823,7 +7856,7 @@ window.openFloatingTimerWindow = async function(preferredType = 'timer', preferr
       window.vortexFloatingWindow.focus();
       window.updateFloatingTimerUI();
       return;
-    } catch (e) {}
+    } catch (e) { }
   }
 
   // Metode 1: Document Picture-in-Picture API (Chromium 111+ - Always-on-top melayang di luar website di atas semua aplikasi desktop)
@@ -7846,7 +7879,7 @@ window.openFloatingTimerWindow = async function(preferredType = 'timer', preferr
   const height = 540;
   const left = Math.max(20, (window.screen.width - width) - 40);
   const top = Math.max(20, Math.floor((window.screen.height - height) / 2));
-  
+
   const popup = window.open(
     'about:blank',
     'vortex_timer_floating',
@@ -8252,7 +8285,7 @@ function initFloatingWindowDOM(win, isPiP) {
   window.updateFloatingTimerUI();
 }
 
-window.updateFloatingTimerUI = function() {
+window.updateFloatingTimerUI = function () {
   if (!window.vortexFloatingWindow || window.vortexFloatingWindow.closed) return;
   const doc = window.vortexFloatingWindow.document;
   if (!doc || !doc.body) return;
@@ -8292,8 +8325,8 @@ window.updateFloatingTimerUI = function() {
 
     const remaining = window.getTimerRemainingSeconds(activeTimer);
     const isCompleted = remaining === 0;
-    const percent = activeTimer.totalSeconds > 0 
-      ? Math.max(0, Math.min(100, Math.round((remaining / activeTimer.totalSeconds) * 100))) 
+    const percent = activeTimer.totalSeconds > 0
+      ? Math.max(0, Math.min(100, Math.round((remaining / activeTimer.totalSeconds) * 100)))
       : 0;
 
     let badgeHtml = '';
@@ -8305,7 +8338,7 @@ window.updateFloatingTimerUI = function() {
       badgeHtml = '<span class="pip-badge pip-badge-paused"><i class="fa-solid fa-pause"></i> Dijeda</span>';
     }
 
-    const selectOptions = personalTimers.map(t => 
+    const selectOptions = personalTimers.map(t =>
       `<option value="${t.id}" ${t.id === activeTimer.id ? 'selected' : ''}>${t.name} (${formatSecondsToHMS(t.totalSeconds)})</option>`
     ).join('');
 
@@ -8408,7 +8441,7 @@ window.updateFloatingTimerUI = function() {
       ? '<span class="pip-badge pip-badge-running"><i class="fa-solid fa-play"></i> Berjalan</span>'
       : '<span class="pip-badge pip-badge-paused"><i class="fa-solid fa-stop"></i> Berhenti</span>';
 
-    const selectOptions = personalStopwatches.map(s => 
+    const selectOptions = personalStopwatches.map(s =>
       `<option value="${s.id}" ${s.id === activeSw.id ? 'selected' : ''}>${s.name} (${s.dept || 'Operasional'})</option>`
     ).join('');
 
@@ -8529,7 +8562,7 @@ window.updateFloatingTimerUI = function() {
   }
 };
 
-window.updateFloatingTimerTick = function() {
+window.updateFloatingTimerTick = function () {
   if (!window.vortexFloatingWindow || window.vortexFloatingWindow.closed) return;
   const doc = window.vortexFloatingWindow.document;
   if (!doc) return;
@@ -8574,11 +8607,11 @@ window.updateFloatingTimerTick = function() {
   }
 };
 
-window.closeFloatingTimerWindow = function() {
+window.closeFloatingTimerWindow = function () {
   if (window.vortexFloatingWindow && !window.vortexFloatingWindow.closed) {
     try {
       window.vortexFloatingWindow.close();
-    } catch (e) {}
+    } catch (e) { }
     window.vortexFloatingWindow = null;
   }
 };
@@ -9083,16 +9116,16 @@ function renderUpdatePaPage() {
 
   const baseLogs = isAdmin
     ? allLogs.filter(item => {
-        if (!item) return false;
-        if (item.userId && adminIds.has(String(item.userId))) return false;
-        if (item.userFullName && adminNames.has(String(item.userFullName).toLowerCase())) return false;
-        return true;
-      })
+      if (!item) return false;
+      if (item.userId && adminIds.has(String(item.userId))) return false;
+      if (item.userFullName && adminNames.has(String(item.userFullName).toLowerCase())) return false;
+      return true;
+    })
     : allLogs.filter(item => {
-        return (item.userId && u && item.userId === u.id) ||
-               (item.username && u && item.username === u.username) ||
-               (item.userFullName && u && item.userFullName === u.fullName);
-      });
+      return (item.userId && u && item.userId === u.id) ||
+        (item.username && u && item.username === u.username) ||
+        (item.userFullName && u && item.userFullName === u.fullName);
+    });
 
   // Search & Filters
   const query = (UI.searchPaInput ? UI.searchPaInput.value : '').toLowerCase().trim();
@@ -9461,11 +9494,11 @@ function handleSavePa(e) {
   renderUpdatePaPage();
 }
 
-window.openPaDetail = function(id) {
+window.openPaDetail = function (id) {
   const logs = state.getPaLogs();
   const entry = logs.find(p => p.id === id);
   if (!entry) return;
-  
+
   if (UI.paDetailAvatar) UI.paDetailAvatar.src = entry.userAvatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80';
   if (UI.paDetailUserName) UI.paDetailUserName.textContent = entry.userFullName;
   if (UI.paDetailDept) UI.paDetailDept.textContent = entry.department;
@@ -9493,7 +9526,7 @@ window.openPaDetail = function(id) {
   if (UI.modalPaDetail) UI.modalPaDetail.classList.remove('hidden');
 };
 
-window.promptEditPa = function(id) {
+window.promptEditPa = function (id) {
   const logs = state.getPaLogs();
   const entry = logs.find(p => p.id === id);
   if (!entry) return;
@@ -9504,7 +9537,7 @@ window.promptEditPa = function(id) {
   openEditPaModal(entry);
 };
 
-window.promptDeletePa = function(id, title) {
+window.promptDeletePa = function (id, title) {
   const logs = state.getPaLogs();
   const entry = logs.find(p => p.id === id);
   if (!entry) return;
@@ -9518,7 +9551,7 @@ window.promptDeletePa = function(id, title) {
   UI.modalConfirmDelete.classList.remove('hidden');
 };
 
-window.promptDeleteAllPaMonth = function() {
+window.promptDeleteAllPaMonth = function () {
   if (!state.isAdmin()) {
     showToast('Akses Dibatasi', 'Hanya Administrator yang memiliki wewenang untuk menghapus seluruh data bulan ini.', 'danger');
     return;
@@ -9543,7 +9576,7 @@ window.promptDeleteAllPaMonth = function() {
   UI.modalConfirmDelete.classList.remove('hidden');
 };
 
-window.approvePa = function(id) {
+window.approvePa = function (id) {
   if (!state.isAdmin()) {
     showToast('Akses Ditolak', 'Hanya Administrator / Team Leader yang dapat memverifikasi status PA.', 'warning');
     return;
@@ -9916,11 +9949,11 @@ function renderCaPage() {
 
     if (searchQ) {
       const match = (item.userFullName || '').toLowerCase().includes(searchQ) ||
-                    (item.date || '').toLowerCase().includes(searchQ) ||
-                    (item.department || '').toLowerCase().includes(searchQ) ||
-                    (item.channel || '').toLowerCase().includes(searchQ) ||
-                    (item.focusParam || '').toLowerCase().includes(searchQ) ||
-                    (item.notes || '').toLowerCase().includes(searchQ);
+        (item.date || '').toLowerCase().includes(searchQ) ||
+        (item.department || '').toLowerCase().includes(searchQ) ||
+        (item.channel || '').toLowerCase().includes(searchQ) ||
+        (item.focusParam || '').toLowerCase().includes(searchQ) ||
+        (item.notes || '').toLowerCase().includes(searchQ);
       if (!match) return false;
     }
     if (isAdmin && filterUser !== 'ALL' && item.userFullName !== filterUser) return false;
@@ -10072,7 +10105,7 @@ function openAddCaModal() {
   if (UI.modalCaForm) UI.modalCaForm.classList.remove('hidden');
 }
 
-window.promptEditCa = function(id) {
+window.promptEditCa = function (id) {
   if (!state.isAdmin()) {
     showToast('Akses Dibatasi', 'Hanya Administrator yang dapat mengedit nilai CA.', 'warning');
     return;
@@ -10203,7 +10236,7 @@ function handleSaveCa(e) {
   renderCaPage();
 }
 
-window.promptDeleteCa = function(id, name) {
+window.promptDeleteCa = function (id, name) {
   if (!state.isAdmin()) {
     showToast('Akses Dibatasi', 'Hanya Administrator yang memiliki hak izin untuk menghapus nilai CA.', 'danger');
     return;
@@ -10215,7 +10248,7 @@ window.promptDeleteCa = function(id, name) {
 };
 
 // Hapus Semua Data CA dalam 1 Bulan
-window.promptDeleteCaMonth = function() {
+window.promptDeleteCaMonth = function () {
   if (!state.isAdmin()) {
     showToast('Akses Dibatasi', 'Hanya Administrator yang memiliki wewenang untuk menghapus seluruh data bulan ini.', 'danger');
     return;
@@ -10241,7 +10274,7 @@ window.promptDeleteCaMonth = function() {
 };
 
 // Hapus Data CA yang Ditandai (Batch Delete)
-window.promptDeleteSelectedCa = function() {
+window.promptDeleteSelectedCa = function () {
   if (!state.isAdmin()) {
     showToast('Akses Dibatasi', 'Hanya Administrator yang memiliki wewenang untuk menghapus data evaluasi.', 'danger');
     return;
@@ -10259,7 +10292,7 @@ window.promptDeleteSelectedCa = function() {
 };
 
 // Tandai / Batal Tandai Semua Data yang Sedang Tampil
-window.toggleSelectAllCa = function(selectAll) {
+window.toggleSelectAllCa = function (selectAll) {
   if (!state.isAdmin()) return;
   const selMonth = (UI.filterCaMonth ? UI.filterCaMonth.value : '2026-10') || '2026-10';
   const searchQ = (UI.searchCaInput ? UI.searchCaInput.value.trim().toLowerCase() : '');
@@ -10272,11 +10305,11 @@ window.toggleSelectAllCa = function(selectAll) {
     if (selMonth !== 'ALL' && !(item.date || '').startsWith(selMonth)) return false;
     if (searchQ) {
       const match = (item.userFullName || '').toLowerCase().includes(searchQ) ||
-                    (item.date || '').toLowerCase().includes(searchQ) ||
-                    (item.department || '').toLowerCase().includes(searchQ) ||
-                    (item.channel || '').toLowerCase().includes(searchQ) ||
-                    (item.focusParam || '').toLowerCase().includes(searchQ) ||
-                    (item.notes || '').toLowerCase().includes(searchQ);
+        (item.date || '').toLowerCase().includes(searchQ) ||
+        (item.department || '').toLowerCase().includes(searchQ) ||
+        (item.channel || '').toLowerCase().includes(searchQ) ||
+        (item.focusParam || '').toLowerCase().includes(searchQ) ||
+        (item.notes || '').toLowerCase().includes(searchQ);
       if (!match) return false;
     }
     if (filterUser !== 'ALL' && item.userFullName !== filterUser) return false;
@@ -10298,14 +10331,14 @@ window.toggleSelectAllCa = function(selectAll) {
   renderCaPage();
 };
 
-window.deselectAllCa = function() {
+window.deselectAllCa = function () {
   if (!state.isAdmin()) return;
   state.selectedCaIds.clear();
   renderCaPage();
   showToast('Tanda Dibatalkan', 'Semua tanda telah dibatalkan.', 'info');
 };
 
-window.filterCaByUser = function(userName) {
+window.filterCaByUser = function (userName) {
   if (UI.filterCaUserSelect) {
     if (UI.filterCaUserSelect.value === userName) {
       UI.filterCaUserSelect.value = 'ALL';
@@ -10887,7 +10920,7 @@ async function pushCaToGoogleSheets() {
 
     const now = new Date();
     const formatted = `${String(now.getDate()).padStart(2, '0')}/${String(now.getMonth() + 1).padStart(2, '0')}/${now.getFullYear()} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-    
+
     config.lastSyncTime = formatted;
     config.lastSyncStatus = 'success';
     state.saveCaGSheetConfig(config);
@@ -11335,8 +11368,8 @@ function renderTiketPage() {
 
         const diffDisplay = summary.daysInput > 0
           ? (summary.diffTarget >= 0
-              ? `<span class="text-green font-mono font-bold">+${summary.diffTarget.toLocaleString('id-ID')} Tiket</span>`
-              : `<span class="text-yellow font-mono font-bold">-${Math.abs(summary.diffTarget).toLocaleString('id-ID')} Tiket</span>`)
+            ? `<span class="text-green font-mono font-bold">+${summary.diffTarget.toLocaleString('id-ID')} Tiket</span>`
+            : `<span class="text-yellow font-mono font-bold">-${Math.abs(summary.diffTarget).toLocaleString('id-ID')} Tiket</span>`)
           : '<span style="color:var(--gray-400);">-</span>';
 
         tr.innerHTML = `
@@ -11528,17 +11561,17 @@ function renderTiketPage() {
     // SECURITY / RBAC: Regular user can ONLY see their own ticket logs
     if (!isAdmin) {
       const matchSelf = (item.userFullName === currentFullName) ||
-                        (currentUser && item.userId === currentUser.id) ||
-                        (currentUser && item.username === currentUser.username);
+        (currentUser && item.userId === currentUser.id) ||
+        (currentUser && item.username === currentUser.username);
       if (!matchSelf) return false;
     }
     const tCount = Number(item.ticketCount) || 0;
     if (searchQ) {
       const match = (item.userFullName || '').toLowerCase().includes(searchQ) ||
-                    (item.date || '').toLowerCase().includes(searchQ) ||
-                    (item.department || '').toLowerCase().includes(searchQ) ||
-                    (item.notes || '').toLowerCase().includes(searchQ) ||
-                    String(tCount).includes(searchQ);
+        (item.date || '').toLowerCase().includes(searchQ) ||
+        (item.department || '').toLowerCase().includes(searchQ) ||
+        (item.notes || '').toLowerCase().includes(searchQ) ||
+        String(tCount).includes(searchQ);
       if (!match) return false;
     }
     if (isAdmin && filterUser && filterUser !== 'ALL' && item.userFullName !== filterUser) return false;
@@ -11645,9 +11678,9 @@ function renderTiketPage() {
         <span class="badge badge-red-subtle font-mono" style="font-size:0.75rem;" title="${tCount} dari 1.320 target bulanan">+${contribPct}%</span>
       </td>
       <td style="text-align: center;">
-        ${isDayTargetAchieved 
-          ? '<span class="badge badge-green" style="font-size:0.75rem;"><i class="fa-solid fa-check" style="margin-right:4px;"></i>Tercapai (≥60)</span>' 
-          : '<span class="badge badge-yellow" style="font-size:0.75rem;"><i class="fa-solid fa-clock" style="margin-right:4px;"></i><60 Tiket</span>'}
+        ${isDayTargetAchieved
+        ? '<span class="badge badge-green" style="font-size:0.75rem;"><i class="fa-solid fa-check" style="margin-right:4px;"></i>Tercapai (≥60)</span>'
+        : '<span class="badge badge-yellow" style="font-size:0.75rem;"><i class="fa-solid fa-clock" style="margin-right:4px;"></i><60 Tiket</span>'}
       </td>
       <td>
         <div style="font-size:0.75rem; color:var(--gray-300); max-width:260px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="${(item.notes || '').replace(/"/g, '&quot;')}">
@@ -11763,7 +11796,7 @@ function handleSaveTiket(e) {
 
   const tikets = state.getTikets();
   const now = new Date();
-  const timeStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+  const timeStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
 
   if (id) {
     // EDIT
@@ -11834,7 +11867,7 @@ function handleSaveTiket(e) {
   renderTiketPage();
 }
 
-window.promptEditTiket = function(id) {
+window.promptEditTiket = function (id) {
   if (!state.isAdmin()) {
     showToast('Akses Dibatasi', 'Hanya Administrator yang memiliki wewenang untuk mengedit perolehan tiket.', 'warning');
     return;
@@ -11845,7 +11878,7 @@ window.promptEditTiket = function(id) {
   openEditTiketModal(item);
 };
 
-window.promptDeleteTiket = function(id, name) {
+window.promptDeleteTiket = function (id, name) {
   if (!state.isAdmin()) {
     showToast('Akses Dibatasi', 'Hanya Administrator yang memiliki hak izin untuk menghapus perolehan tiket.', 'warning');
     return;
@@ -11856,7 +11889,7 @@ window.promptDeleteTiket = function(id, name) {
   UI.modalConfirmDelete.classList.remove('hidden');
 };
 
-window.filterTiketByUser = function(userFullName) {
+window.filterTiketByUser = function (userFullName) {
   const currentFullName = state.currentUser ? state.currentUser.fullName : '';
   if (!state.isAdmin() && userFullName !== currentFullName) {
     showToast('Akses Dibatasi', 'Anda hanya dapat melihat rincian tiket untuk diri Anda sendiri.', 'warning');
@@ -11919,10 +11952,10 @@ function toggleSelectAllTiket(selectAll) {
     const tCount = Number(item.ticketCount) || 0;
     if (searchQ) {
       const match = (item.userFullName || '').toLowerCase().includes(searchQ) ||
-                    (item.date || '').toLowerCase().includes(searchQ) ||
-                    (item.department || '').toLowerCase().includes(searchQ) ||
-                    (item.notes || '').toLowerCase().includes(searchQ) ||
-                    String(tCount).includes(searchQ);
+        (item.date || '').toLowerCase().includes(searchQ) ||
+        (item.department || '').toLowerCase().includes(searchQ) ||
+        (item.notes || '').toLowerCase().includes(searchQ) ||
+        String(tCount).includes(searchQ);
       if (!match) return false;
     }
     if (filterUser !== 'ALL' && item.userFullName !== filterUser) return false;
@@ -12487,7 +12520,7 @@ async function pushTiketToGoogleSheets() {
 
     const now = new Date();
     const formatted = `${String(now.getDate()).padStart(2, '0')}/${String(now.getMonth() + 1).padStart(2, '0')}/${now.getFullYear()} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-    
+
     config.lastSyncTime = formatted;
     config.lastSyncStatus = 'success';
     state.saveTiketGSheetConfig(config);
@@ -13074,17 +13107,17 @@ function renderAhtPage() {
     // RBAC: Regular user can ONLY see their own logs
     if (!isAdmin) {
       const matchSelf = (item.userFullName === currentFullName) ||
-                        (currentUser && item.userId === currentUser.id) ||
-                        (currentUser && item.username === currentUser.username);
+        (currentUser && item.userId === currentUser.id) ||
+        (currentUser && item.username === currentUser.username);
       if (!matchSelf) return false;
     }
 
     if (searchQ) {
       const match = (item.userFullName || '').toLowerCase().includes(searchQ) ||
-                    (item.date || '').toLowerCase().includes(searchQ) ||
-                    (item.department || '').toLowerCase().includes(searchQ) ||
-                    (item.notes || '').toLowerCase().includes(searchQ) ||
-                    (item.status || '').toLowerCase().includes(searchQ);
+        (item.date || '').toLowerCase().includes(searchQ) ||
+        (item.department || '').toLowerCase().includes(searchQ) ||
+        (item.notes || '').toLowerCase().includes(searchQ) ||
+        (item.status || '').toLowerCase().includes(searchQ);
       if (!match) return false;
     }
 
@@ -13327,7 +13360,7 @@ function handleSaveAht(e) {
 
   const ahtLogs = state.getAhtLogs();
   const now = new Date();
-  const timeStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+  const timeStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
 
   if (id) {
     // EDIT
@@ -13391,7 +13424,7 @@ function handleSaveAht(e) {
   renderAhtPage();
 }
 
-window.promptEditAht = function(id) {
+window.promptEditAht = function (id) {
   if (!state.isAdmin()) {
     showToast('Akses Dibatasi', 'Hanya Administrator yang memiliki wewenang untuk mengedit handling time.', 'warning');
     return;
@@ -13402,7 +13435,7 @@ window.promptEditAht = function(id) {
   openEditAhtModal(item);
 };
 
-window.promptDeleteAht = function(id, name, date) {
+window.promptDeleteAht = function (id, name, date) {
   if (!state.isAdmin()) {
     showToast('Akses Dibatasi', 'Hanya Administrator yang memiliki hak izin untuk menghapus handling time.', 'warning');
     return;
@@ -13413,7 +13446,7 @@ window.promptDeleteAht = function(id, name, date) {
   UI.modalConfirmDelete.classList.remove('hidden');
 };
 
-window.promptDeleteAllAhtMonth = function() {
+window.promptDeleteAllAhtMonth = function () {
   if (!state.isAdmin()) {
     showToast('Akses Ditolak', 'Hanya Administrator yang dapat menghapus data handling time bulanan.', 'warning');
     return;
@@ -13435,7 +13468,7 @@ window.promptDeleteAllAhtMonth = function() {
   UI.modalConfirmDelete.classList.remove('hidden');
 };
 
-window.handleAhtBatchDelete = function() {
+window.handleAhtBatchDelete = function () {
   if (!state.isAdmin()) {
     showToast('Akses Ditolak', 'Hanya Administrator yang dapat melakukan penghapusan massal.', 'warning');
     return;
@@ -13451,7 +13484,7 @@ window.handleAhtBatchDelete = function() {
   UI.modalConfirmDelete.classList.remove('hidden');
 };
 
-window.filterAhtByUser = function(userName) {
+window.filterAhtByUser = function (userName) {
   if (UI.filterAhtUserSelect) {
     if (Array.from(UI.filterAhtUserSelect.options).some(o => o.value === userName)) {
       UI.filterAhtUserSelect.value = userName;
@@ -14016,7 +14049,7 @@ async function pushAhtToGoogleSheets() {
 
     const now = new Date();
     const formatted = `${String(now.getDate()).padStart(2, '0')}/${String(now.getMonth() + 1).padStart(2, '0')}/${now.getFullYear()} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-    
+
     config.lastSyncTime = formatted;
     config.lastSyncStatus = 'success';
     state.saveAhtGSheetConfig(config);
@@ -14617,7 +14650,7 @@ async function pushArtToGoogleSheets() {
 
     const now = new Date();
     const formatted = `${String(now.getDate()).padStart(2, '0')}/${String(now.getMonth() + 1).padStart(2, '0')}/${now.getFullYear()} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-    
+
     config.lastSyncTime = formatted;
     config.lastSyncStatus = 'success';
     state.saveArtGSheetConfig(config);
@@ -15230,17 +15263,17 @@ function renderArtPage() {
     // RBAC: Regular user can ONLY see their own logs
     if (!isAdmin) {
       const matchSelf = (item.userFullName === currentFullName) ||
-                        (currentUser && item.userId === currentUser.id) ||
-                        (currentUser && item.username === currentUser.username);
+        (currentUser && item.userId === currentUser.id) ||
+        (currentUser && item.username === currentUser.username);
       if (!matchSelf) return false;
     }
 
     if (searchQ) {
       const match = (item.userFullName || '').toLowerCase().includes(searchQ) ||
-                    (item.date || '').toLowerCase().includes(searchQ) ||
-                    (item.department || '').toLowerCase().includes(searchQ) ||
-                    (item.notes || '').toLowerCase().includes(searchQ) ||
-                    (item.status || '').toLowerCase().includes(searchQ);
+        (item.date || '').toLowerCase().includes(searchQ) ||
+        (item.department || '').toLowerCase().includes(searchQ) ||
+        (item.notes || '').toLowerCase().includes(searchQ) ||
+        (item.status || '').toLowerCase().includes(searchQ);
       if (!match) return false;
     }
 
@@ -15497,7 +15530,7 @@ function handleSaveArt(e) {
 
   const artLogs = state.getArtLogs();
   const now = new Date();
-  const timeStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+  const timeStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
 
   if (id) {
     // EDIT
@@ -15563,7 +15596,7 @@ function handleSaveArt(e) {
   renderArtPage();
 }
 
-window.promptEditArt = function(id) {
+window.promptEditArt = function (id) {
   if (!state.isAdmin()) {
     showToast('Akses Dibatasi', 'Hanya Administrator yang memiliki wewenang untuk mengedit response time.', 'warning');
     return;
@@ -15574,7 +15607,7 @@ window.promptEditArt = function(id) {
   openEditArtModal(item);
 };
 
-window.promptDeleteArt = function(id, name, date) {
+window.promptDeleteArt = function (id, name, date) {
   if (!state.isAdmin()) {
     showToast('Akses Dibatasi', 'Hanya Administrator yang memiliki hak izin untuk menghapus response time.', 'warning');
     return;
@@ -15585,7 +15618,7 @@ window.promptDeleteArt = function(id, name, date) {
   UI.modalConfirmDelete.classList.remove('hidden');
 };
 
-window.promptDeleteAllArtMonth = function() {
+window.promptDeleteAllArtMonth = function () {
   if (!state.isAdmin()) {
     showToast('Akses Ditolak', 'Hanya Administrator yang dapat menghapus data response time bulanan.', 'warning');
     return;
@@ -15607,7 +15640,7 @@ window.promptDeleteAllArtMonth = function() {
   UI.modalConfirmDelete.classList.remove('hidden');
 };
 
-window.handleArtBatchDelete = function() {
+window.handleArtBatchDelete = function () {
   if (!state.isAdmin()) {
     showToast('Akses Ditolak', 'Hanya Administrator yang dapat melakukan penghapusan massal.', 'warning');
     return;
@@ -15623,7 +15656,7 @@ window.handleArtBatchDelete = function() {
   UI.modalConfirmDelete.classList.remove('hidden');
 };
 
-window.filterArtByUser = function(userName) {
+window.filterArtByUser = function (userName) {
   if (UI.filterArtUserSelect) {
     if (Array.from(UI.filterArtUserSelect.options).some(o => o.value === userName)) {
       UI.filterArtUserSelect.value = userName;
@@ -16474,13 +16507,13 @@ function renderFindingPage() {
     if (selectedMonth !== 'ALL' && !(item.date || '').startsWith(selectedMonth)) return false;
     if (searchQ) {
       const match = (item.id || '').toLowerCase().includes(searchQ) ||
-                    (item.userFullName || '').toLowerCase().includes(searchQ) ||
-                    (item.department || '').toLowerCase().includes(searchQ) ||
-                    (item.findingType || '').toLowerCase().includes(searchQ) ||
-                    (item.category || '').toLowerCase().includes(searchQ) ||
-                    (item.desc || '').toLowerCase().includes(searchQ) ||
-                    (item.commitment || '').toLowerCase().includes(searchQ) ||
-                    (item.actionPlan || '').toLowerCase().includes(searchQ);
+        (item.userFullName || '').toLowerCase().includes(searchQ) ||
+        (item.department || '').toLowerCase().includes(searchQ) ||
+        (item.findingType || '').toLowerCase().includes(searchQ) ||
+        (item.category || '').toLowerCase().includes(searchQ) ||
+        (item.desc || '').toLowerCase().includes(searchQ) ||
+        (item.commitment || '').toLowerCase().includes(searchQ) ||
+        (item.actionPlan || '').toLowerCase().includes(searchQ);
       if (!match) return false;
     }
     if (filterService !== 'ALL' && item.department !== filterService) return false;
@@ -16662,7 +16695,7 @@ function openAddFindingModal() {
   if (UI.modalFindingForm) UI.modalFindingForm.classList.remove('hidden');
 }
 
-window.openEditFindingModal = function(id) {
+window.openEditFindingModal = function (id) {
   if (!state.isAdmin()) {
     showToast('Akses Dibatasi', 'Hanya Administrator yang memiliki wewenang untuk mengedit temuan audit QA.', 'warning');
     return;
@@ -16744,7 +16777,7 @@ function handleSaveFinding(e) {
   }
 
   const allUsers = state.getUsers();
-  const matchedUser = allUsers.find(usr => 
+  const matchedUser = allUsers.find(usr =>
     (usr.fullName && usr.fullName.toLowerCase() === userFullName.toLowerCase()) ||
     (usr.username && usr.username.toLowerCase() === userFullName.toLowerCase())
   );
@@ -16783,7 +16816,7 @@ function handleSaveFinding(e) {
     // Mode Tambah: catat temuan baru
     const todayStr = date;
     const randNum = String(Math.floor(Math.random() * 900) + 100);
-    const newId = `FND-${todayStr.slice(0,4)}-${randNum}`;
+    const newId = `FND-${todayStr.slice(0, 4)}-${randNum}`;
 
     const newEntry = {
       id: newId,
@@ -16817,7 +16850,7 @@ function handleSaveFinding(e) {
   renderFindingPage();
 }
 
-window.quickCycleFindingStatus = function(id) {
+window.quickCycleFindingStatus = function (id) {
   if (!state.isAdmin()) {
     showToast('Akses Dibatasi', 'Hanya Administrator yang dapat mengubah status tindak lanjut temuan.', 'warning');
     return;
@@ -16837,7 +16870,7 @@ window.quickCycleFindingStatus = function(id) {
   renderFindingPage();
 };
 
-window.promptDeleteFinding = function(id, name) {
+window.promptDeleteFinding = function (id, name) {
   if (!state.isAdmin()) {
     showToast('Akses Dibatasi', 'Hanya Administrator yang memiliki wewenang untuk menghapus temuan audit QA.', 'warning');
     return;
@@ -16848,7 +16881,7 @@ window.promptDeleteFinding = function(id, name) {
   UI.modalConfirmDelete.classList.remove('hidden');
 };
 
-window.promptDeleteAllFindingMonth = function() {
+window.promptDeleteAllFindingMonth = function () {
   if (!state.isAdmin()) {
     showToast('Akses Ditolak', 'Hanya Administrator yang dapat menghapus data temuan bulanan.', 'warning');
     return;
@@ -16880,7 +16913,7 @@ window.promptDeleteAllFindingMonth = function() {
   UI.modalConfirmDelete.classList.remove('hidden');
 };
 
-window.handleFindingBatchDelete = function() {
+window.handleFindingBatchDelete = function () {
   if (!state.isAdmin()) {
     showToast('Akses Ditolak', 'Hanya Administrator yang dapat melakukan penghapusan massal.', 'warning');
     return;
@@ -17110,14 +17143,14 @@ function applySidebarCollapse(collapsed, save = true) {
   }
 
   if (UI.sidebarCollapseIcon) {
-    UI.sidebarCollapseIcon.className = collapsed 
-      ? 'fa-solid fa-angles-right' 
+    UI.sidebarCollapseIcon.className = collapsed
+      ? 'fa-solid fa-angles-right'
       : 'fa-solid fa-angles-left';
   }
 
   if (UI.sidebarCollapseBtn) {
-    UI.sidebarCollapseBtn.title = collapsed 
-      ? 'Perbesar Sidebar (Kembalikan Tampilan Normal - Ctrl+B)' 
+    UI.sidebarCollapseBtn.title = collapsed
+      ? 'Perbesar Sidebar (Kembalikan Tampilan Normal - Ctrl+B)'
       : 'Perkecil Sidebar (Lebarkan Layanan Utama - Ctrl+B)';
   }
 
@@ -17637,7 +17670,64 @@ function initEvents() {
   if (UI.registerUserForm) UI.registerUserForm.addEventListener('submit', handleRegisterUserSubmit);
   if (UI.regRole) UI.regRole.addEventListener('change', updateRoleExplanation);
 
-  // Avatar Photo Handlers
+  // Avatar Photo Handlers & Client-side Image Optimization
+  function compressAvatarImageFile(file, callback) {
+    if (!file) return;
+    if (!file.type || !file.type.startsWith('image/')) {
+      showToast('Format Tidak Didukung', 'Mohon pilih berkas foto gambar (JPG, PNG, WebP).', 'warning');
+      return;
+    }
+    // Izinkan ukuran foto hingga 10MB karena akan dikompresi otomatis via Canvas
+    if (file.size > 10 * 1024 * 1024) {
+      showToast('Ukuran Terlalu Besar', 'Maksimal ukuran foto adalah 10MB.', 'warning');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onerror = () => {
+      showToast('Gagal Membaca File', 'Terjadi kesalahan saat membaca berkas foto.', 'danger');
+    };
+    reader.onload = (e) => {
+      const rawData = e.target.result;
+      const img = new Image();
+      img.onerror = () => {
+        // Fallback jika Image decoding error
+        callback(rawData);
+      };
+      img.onload = () => {
+        try {
+          const canvas = document.createElement('canvas');
+          const maxDim = 256;
+          const width = img.width;
+          const height = img.height;
+
+          // Crop persegi tengah (center square crop) agar avatar lingkaran presisi dan tidak distorsi
+          const sSize = Math.min(width, height);
+          const sx = (width - sSize) / 2;
+          const sy = (height - sSize) / 2;
+
+          const outDim = Math.min(sSize, maxDim);
+          canvas.width = outDim;
+          canvas.height = outDim;
+
+          const ctx = canvas.getContext('2d');
+          ctx.imageSmoothingEnabled = true;
+          ctx.imageSmoothingQuality = 'high';
+          ctx.drawImage(img, sx, sy, sSize, sSize, 0, 0, outDim, outDim);
+
+          // Kompresi ke format JPEG dengan kualitas 0.85 (ukuran berkas kecil ~12-25 KB, aman untuk Firestore & LocalStorage)
+          const compressed = canvas.toDataURL('image/jpeg', 0.85);
+          callback(compressed);
+        } catch (err) {
+          console.warn('Canvas resize error, fallback to raw data URL:', err);
+          callback(rawData);
+        }
+      };
+      img.src = rawData;
+    };
+    reader.readAsDataURL(file);
+  }
+
   if (UI.btnChooseAvatarFile && UI.regAvatarFileInput) {
     UI.btnChooseAvatarFile.addEventListener('click', () => {
       UI.regAvatarFileInput.click();
@@ -17648,20 +17738,15 @@ function initEvents() {
     UI.regAvatarFileInput.addEventListener('change', (e) => {
       const file = e.target.files && e.target.files[0];
       if (file) {
-        if (file.size > 2 * 1024 * 1024) {
-          showToast('Ukuran Berkas Terlalu Besar', 'Maksimal ukuran foto adalah 2MB.', 'warning');
-          return;
-        }
-        const reader = new FileReader();
-        reader.onload = function(evt) {
-          const result = evt.target.result;
+        compressAvatarImageFile(file, (result) => {
           if (UI.regAvatarPreview) UI.regAvatarPreview.src = result;
           if (UI.regAvatarData) UI.regAvatarData.value = result;
           if (UI.regAvatarUrl) UI.regAvatarUrl.value = '';
           showToast('Foto Berhasil Dipilih', 'Foto profil baru siap disimpan.', 'info');
-        };
-        reader.readAsDataURL(file);
+        });
       }
+      // Reset value agar memilih berkas yang sama tetap memicu event change
+      e.target.value = '';
     });
   }
 
@@ -18831,7 +18916,7 @@ const TypingAudioEngine = {
       if (AudioCtx) this.ctx = new AudioCtx();
     }
     if (this.ctx && this.ctx.state === 'suspended') {
-      this.ctx.resume().catch(() => {});
+      this.ctx.resume().catch(() => { });
     }
   },
   playKey() {
@@ -18850,7 +18935,7 @@ const TypingAudioEngine = {
       gain.connect(this.ctx.destination);
       osc.start();
       osc.stop(this.ctx.currentTime + 0.04);
-    } catch (e) {}
+    } catch (e) { }
   },
   playError() {
     if (!typingState.soundEnabled) return;
@@ -18867,7 +18952,7 @@ const TypingAudioEngine = {
       gain.connect(this.ctx.destination);
       osc.start();
       osc.stop(this.ctx.currentTime + 0.11);
-    } catch (e) {}
+    } catch (e) { }
   },
   playNitro() {
     if (!typingState.soundEnabled) return;
@@ -18891,7 +18976,7 @@ const TypingAudioEngine = {
       filter.connect(gain);
       gain.connect(this.ctx.destination);
       noise.start();
-    } catch (e) {}
+    } catch (e) { }
   },
   playFanfare() {
     if (!typingState.soundEnabled) return;
@@ -18912,7 +18997,7 @@ const TypingAudioEngine = {
         osc.start(start);
         osc.stop(start + 0.33);
       });
-    } catch (e) {}
+    } catch (e) { }
   },
   playKingFanfare() {
     if (!typingState.soundEnabled) return;
@@ -18934,7 +19019,7 @@ const TypingAudioEngine = {
         osc.start(start);
         osc.stop(start + 0.46);
       });
-    } catch (e) {}
+    } catch (e) { }
   }
 };
 
@@ -19971,10 +20056,10 @@ function runTypingPhysics() {
   if (spd > 210) { gear = 'NITRO BOOST 🔥'; isTurbo = true; }
   else if (spd > 165) { gear = 'GEAR 6'; }
   else if (spd > 125) { gear = 'GEAR 5'; }
-  else if (spd > 85)  { gear = 'GEAR 4'; }
-  else if (spd > 50)  { gear = 'GEAR 3'; }
-  else if (spd > 20)  { gear = 'GEAR 2'; }
-  else if (spd <= 0)  { gear = 'GEAR N'; }
+  else if (spd > 85) { gear = 'GEAR 4'; }
+  else if (spd > 50) { gear = 'GEAR 3'; }
+  else if (spd > 20) { gear = 'GEAR 2'; }
+  else if (spd <= 0) { gear = 'GEAR N'; }
 
   const elGear = document.getElementById('trackGearBadge');
   if (elGear) {
@@ -20747,7 +20832,7 @@ function renderAdminTypingLeaderboard() {
   // Evaluasi Gelar Terbaik, DRIVER Title, & Mobil Favorit per pengguna
   userList.forEach(u => {
     u.bestRank = getDriverRank(u.bestWpm, u.bestAccuracy);
-    
+
     // Evaluasi Gelar Target Pencapaian DRIVER / DRIVER KING
     let bestDriverTitle = '-';
     u.runs.forEach(r => {
@@ -20804,9 +20889,9 @@ function renderAdminTypingLeaderboard() {
 
   // Filter pencarian & rank
   const filteredUsers = userList.filter(u => {
-    const matchQuery = !query || 
-      u.fullName.toLowerCase().includes(query) || 
-      u.username.toLowerCase().includes(query) || 
+    const matchQuery = !query ||
+      u.fullName.toLowerCase().includes(query) ||
+      u.username.toLowerCase().includes(query) ||
       u.department.toLowerCase().includes(query);
     const matchRank = (filterRank === 'ALL') || (u.bestRank && u.bestRank.title === filterRank);
     return matchQuery && matchRank;
@@ -21519,7 +21604,7 @@ function getQuizUserKey(user) {
 
 function getSelectedQuizHero(targetUserId) {
   const uKey = targetUserId || getQuizUserKey();
-  const savedId = (function() {
+  const savedId = (function () {
     try {
       const perUser = localStorage.getItem('quiz_selected_hero_' + uKey);
       if (perUser) return perUser;
@@ -21528,7 +21613,7 @@ function getSelectedQuizHero(targetUserId) {
         if (legacy) return legacy;
       }
       return null;
-    } catch(e) {
+    } catch (e) {
       return null;
     }
   })() || (quizState.activeUserId === uKey ? quizState.selectedHeroId : null) || 'iconnet';
@@ -21542,7 +21627,7 @@ function selectQuizHero(heroId, isSilent = false, targetUserId = null) {
   try {
     localStorage.setItem('quiz_selected_hero_' + uKey, hero.id);
     localStorage.setItem('quiz_selected_hero', hero.id);
-  } catch (e) {}
+  } catch (e) { }
 
   if (uKey === getQuizUserKey()) {
     quizState.selectedHeroId = hero.id;
@@ -21642,8 +21727,8 @@ function applyAnsweredFeedbackUi(choice, q) {
   const btnNext = document.getElementById('btnNextQuestion');
   if (btnNext) {
     const isLast = (curr + 1 >= total);
-    btnNext.innerHTML = isLast ? 
-      '<span>Lihat Animasi &amp; Nilai Akhir</span> <i class="fa-solid fa-trophy text-yellow"></i>' : 
+    btnNext.innerHTML = isLast ?
+      '<span>Lihat Animasi &amp; Nilai Akhir</span> <i class="fa-solid fa-trophy text-yellow"></i>' :
       '<span>Lanjut ke Soal Berikutnya</span> <i class="fa-solid fa-arrow-right"></i>';
   }
   if (feedbackBox) feedbackBox.classList.remove('hidden');
@@ -21656,7 +21741,7 @@ function saveActiveUserQuizSession() {
   if (quizState.isFinished || !quizState.questions || quizState.questions.length === 0) {
     try {
       localStorage.removeItem('quiz_active_session_' + uKey);
-    } catch (e) {}
+    } catch (e) { }
     return;
   }
 
@@ -21719,9 +21804,9 @@ function purgeQuizQuestionFromAllSessions(deletedQuestionId) {
             }
           }
         }
-      } catch (inner) {}
+      } catch (inner) { }
     });
-  } catch (e) {}
+  } catch (e) { }
 
   if (quizState && Array.isArray(quizState.questions)) {
     quizState.questions = quizState.questions.filter(q => q && q.id !== deletedQuestionId);
@@ -21757,7 +21842,7 @@ function renderQuizEmptyState() {
   if (emptyBox) emptyBox.classList.remove('hidden');
   if (optionsGrid) optionsGrid.classList.add('hidden');
   if (feedbackBox) feedbackBox.classList.add('hidden');
-  
+
   // Tampilkan questionBody dan pastikan promptEl bertuliskan "Tidak ada soal"
   if (questionBody) questionBody.classList.remove('hidden');
   if (promptEl) promptEl.textContent = 'Tidak ada soal';
@@ -21789,7 +21874,7 @@ function syncQuizArenaWithCurrentBank() {
     quizState.questions = [];
     quizState.userAnswers = [];
     quizState.currentIndex = 0;
-    try { localStorage.removeItem('quiz_active_session_' + uKey); } catch (e) {}
+    try { localStorage.removeItem('quiz_active_session_' + uKey); } catch (e) { }
     renderQuizEmptyState();
     return;
   }
@@ -21835,7 +21920,7 @@ function loadUserQuizSession(targetUserId) {
 
   const currentBank = state.getQuizQuestions();
   if (!currentBank || currentBank.length === 0) {
-    try { localStorage.removeItem('quiz_active_session_' + uKey); } catch (e) {}
+    try { localStorage.removeItem('quiz_active_session_' + uKey); } catch (e) { }
     startQuizBattle();
     return false;
   }
@@ -21862,7 +21947,7 @@ function loadUserQuizSession(targetUserId) {
       .map(q => bankMap.get(q.id));
 
     if (validQuestions.length === 0) {
-      try { localStorage.removeItem('quiz_active_session_' + uKey); } catch (e) {}
+      try { localStorage.removeItem('quiz_active_session_' + uKey); } catch (e) { }
       startQuizBattle();
       return false;
     }
@@ -21880,7 +21965,7 @@ function loadUserQuizSession(targetUserId) {
     quizState.ultramanHp = (typeof savedSession.ultramanHp === 'number') ? savedSession.ultramanHp : 100;
     quizState.monsterHp = (typeof savedSession.monsterHp === 'number') ? savedSession.monsterHp : 100;
     quizState.answered = !!savedSession.answered;
-    quizState.userAnswers = Array.isArray(savedSession.userAnswers) ? 
+    quizState.userAnswers = Array.isArray(savedSession.userAnswers) ?
       savedSession.userAnswers.filter(a => a && a.question && bankMap.has(a.question.id)) : [];
     quizState.startTime = savedSession.startTime || Date.now();
     quizState.endTime = savedSession.endTime || null;
@@ -22231,7 +22316,7 @@ function renderCurrentQuizQuestion() {
     catColor = 'text-red';
   }
   if (categoryBadge) categoryBadge.innerHTML = `<i class="fa-solid ${catIcon} ${catColor}"></i> ${escapeQuizHtml(q.category || 'Informasi')}`;
-  
+
   const pointsPerQuestion = Math.round(100 / total);
   if (pointBadge) pointBadge.innerHTML = `<i class="fa-solid fa-star text-yellow"></i> +${pointsPerQuestion} Poin`;
 
@@ -22327,8 +22412,8 @@ function handleSelectQuizOption(choice) {
 
   if (btnNext) {
     const isLast = (curr + 1 >= total);
-    btnNext.innerHTML = isLast ? 
-      '<span>Lihat Animasi &amp; Nilai Akhir</span> <i class="fa-solid fa-trophy text-yellow"></i>' : 
+    btnNext.innerHTML = isLast ?
+      '<span>Lihat Animasi &amp; Nilai Akhir</span> <i class="fa-solid fa-trophy text-yellow"></i>' :
       '<span>Lanjut ke Soal Berikutnya</span> <i class="fa-solid fa-arrow-right"></i>';
   }
   if (feedbackBox) feedbackBox.classList.remove('hidden');
@@ -22718,8 +22803,8 @@ function finishQuizBattle(resolvedOutcome, resolvedScore) {
   const currentUser = state.currentUser || { id: 'U-GUEST', fullName: 'Peserta Tamu', username: 'guest', department: 'CSO LAYANAN' };
   const historyList = state.getQuizHistory();
   const now = new Date();
-  const dateStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
-  
+  const dateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+
   const historyItem = {
     id: 'QZH-' + Date.now(),
     userId: currentUser.id,
@@ -23024,8 +23109,8 @@ function renderQuizAdminQuestions() {
   const btnSelectAll = document.getElementById('btnQuizSelectAll');
   if (btnSelectAll) {
     const isAllSelected = visibleIds.length > 0 && selectedVisibleCount === visibleIds.length;
-    btnSelectAll.innerHTML = isAllSelected ? 
-      '<i class="fa-solid fa-square-minus"></i> <span>Batal Tandai Semua</span>' : 
+    btnSelectAll.innerHTML = isAllSelected ?
+      '<i class="fa-solid fa-square-minus"></i> <span>Batal Tandai Semua</span>' :
       '<i class="fa-solid fa-list-check"></i> <span>Tandai Semua</span>';
     btnSelectAll.title = isAllSelected ? 'Batalkan penandaan seluruh soal yang tampil' : 'Tandai semua soal yang tampil';
   }
@@ -23343,8 +23428,8 @@ function renderQuizLeaderboard() {
   if (!tbody) return;
 
   if (displayedHistory.length === 0) {
-    const emptyMsg = isAdmin ? 
-      'Tidak ada riwayat nilai kuis yang sesuai dengan filter pemantauan admin.' : 
+    const emptyMsg = isAdmin ?
+      'Tidak ada riwayat nilai kuis yang sesuai dengan filter pemantauan admin.' :
       'Anda belum memiliki riwayat kuis. Silakan kerjakan latihan kuis di Arena Pertarungan untuk melihat perolehan skor Anda.';
     const colSpan = isAdmin ? 8 : 7;
     tbody.innerHTML = `
@@ -23492,7 +23577,7 @@ function initQuizBattle() {
     }
 
     // 2. Bersihkan sesi kuis aktif pengguna agar arena benar-benar memuat soal terupdate dari awal
-    try { localStorage.removeItem('quiz_active_session_' + uKey); } catch (e) {}
+    try { localStorage.removeItem('quiz_active_session_' + uKey); } catch (e) { }
 
     // 3. Reset dan mulai ulang pertarungan kuis
     startQuizBattle(true);
