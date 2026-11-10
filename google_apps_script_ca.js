@@ -22,7 +22,7 @@ const SHEET_NAME = 'CA_Data';
 const HEADERS = [
   'ID Evaluasi',
   'Tanggal Evaluasi',
-  'Nama Petugas CSO',
+  'Username Petugas CSO',
   'Layanan CSO',
   'Channel Interaksi',
   'Skor Nilai CA',
@@ -51,6 +51,14 @@ function getOrCreateSheet() {
     for (let c = 1; c <= HEADERS.length; c++) {
       sheet.autoResizeColumn(c);
     }
+  } else {
+    // Perbarui header kolom ke-3 jika sheet lama masih menggunakan 'Nama Petugas CSO'
+    try {
+      const curHeader = sheet.getRange(1, 3).getValue();
+      if (String(curHeader).indexOf('Nama') !== -1) {
+        sheet.getRange(1, 3).setValue('Username Petugas CSO');
+      }
+    } catch (e) {}
   }
   return sheet;
 }
@@ -72,10 +80,12 @@ function doGet(e) {
     for (let i = 1; i < data.length; i++) {
       const r = data[i];
       if (!r[0]) continue;
+      const userIdentifier = String(r[2] || '').trim();
       rows.push({
         id: String(r[0]),
         date: r[1] instanceof Date ? Utilities.formatDate(r[1], Session.getScriptTimeZone(), 'yyyy-MM-dd') : String(r[1]),
-        userFullName: String(r[2] || ''),
+        username: userIdentifier,
+        userFullName: userIdentifier,
         department: String(r[3] || ''),
         channel: String(r[4] || ''),
         score: parseFloat(r[5]) || 0,
@@ -118,7 +128,7 @@ function doPost(e) {
         const rowsToAppend = logs.map(l => [
           l.id,
           l.date,
-          l.userFullName,
+          l.username || l.userFullName || '',
           l.department,
           l.channel || '-',
           parseFloat(l.score) || 0,
@@ -150,7 +160,7 @@ function doPost(e) {
       const rowData = [
         l.id,
         l.date,
-        l.userFullName,
+        l.username || l.userFullName || '',
         l.department,
         l.channel || '-',
         parseFloat(l.score) || 0,

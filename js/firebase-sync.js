@@ -66,7 +66,7 @@
           localStorage.setItem('vortex_device_id', storedId);
         }
         this.deviceId = storedId;
-      } catch (e) { }
+      } catch (e) {}
     }
 
     /**
@@ -134,7 +134,7 @@
               const parsedQuizDel = JSON.parse(rawQuizDel);
               if (Array.isArray(parsedQuizDel)) parsedQuizDel.forEach(id => set.add(id));
             }
-          } catch (e) { }
+          } catch (e) {}
           ['QZ-001', 'QZ-002', 'QZ-003', 'QZ-004', 'QZ-005', 'QZ-006', 'QZ-007', 'QZ-008', 'QZ-009', 'QZ-010'].forEach(id => set.add(id));
         } else if (key === 'drive_typing_team_results') {
           ['run_demo_1', 'run_demo_2', 'run_demo_3', 'run_demo_4'].forEach(id => set.add(id));
@@ -174,7 +174,7 @@
           ids.forEach(id => { if (id) set.add(id); });
         }
         localStorage.setItem('vortex_synced_ids_' + key, JSON.stringify([...set]));
-      } catch (e) { }
+      } catch (e) {}
     }
 
     /**
@@ -185,7 +185,7 @@
         const set = this.getKnownSyncedIds(key);
         set.delete(id);
         localStorage.setItem('vortex_synced_ids_' + key, JSON.stringify([...set]));
-      } catch (e) { }
+      } catch (e) {}
     }
 
     /**
@@ -201,7 +201,7 @@
           localStorage.setItem('vortex_deleted_quiz_ids', JSON.stringify([...set]));
         }
         this.removeKnownSyncedId(key, id);
-      } catch (e) { }
+      } catch (e) {}
     }
 
     /**
@@ -216,7 +216,7 @@
         if (key === 'vortex_quiz_questions') {
           localStorage.setItem('vortex_deleted_quiz_ids', JSON.stringify([...set]));
         }
-      } catch (e) { }
+      } catch (e) {}
     }
 
     /**
@@ -239,7 +239,7 @@
                 updatedBy: 'Unload_Sync'
               }, { merge: true });
             }
-          } catch (e) { }
+          } catch (e) {}
         }
       });
     }
@@ -523,7 +523,7 @@
         cleanLocal.forEach(l => {
           if (!l || (!l.id && !l.username)) return;
           const keyId = l.id || (l.username && ('uname_' + l.username.toLowerCase()));
-          const remoteUser = map.get(keyId) || Array.from(map.values()).find(r =>
+          const remoteUser = map.get(keyId) || Array.from(map.values()).find(r => 
             (r.id && l.id && String(r.id) === String(l.id)) ||
             (r.username && l.username && r.username.toLowerCase() === l.username.toLowerCase())
           );
@@ -759,7 +759,7 @@
                 if (setAvatar && found.avatar) setAvatar.src = found.avatar;
                 if (sbRole) sbRole.textContent = (found.role || 'user').toUpperCase();
                 if (typeof window.updateUIForUser === 'function') {
-                  try { window.updateUIForUser(found); } catch (errUI) { }
+                  try { window.updateUIForUser(found); } catch (errUI) {}
                 }
               }
             }
@@ -874,7 +874,7 @@
       this.skipNextRemote[key] = Date.now();
       try {
         localStorage.setItem(key + '_updated_at', Date.now().toString());
-      } catch (e) { }
+      } catch (e) {}
 
       // Bersihkan item aktif dari catatan deletedIds jika ada yang dibuat ulang
       if (Array.isArray(data)) {
@@ -892,7 +892,7 @@
               localStorage.setItem('vortex_deleted_ids_' + key, JSON.stringify([...set]));
             }
           }
-        } catch (e) { }
+        } catch (e) {}
       }
 
       // Debounce writes agar tidak spamming jika terjadi multiple changes cepat
@@ -1268,7 +1268,7 @@
         this._storageIntercepted = true;
         const originalSetItem = window.localStorage.setItem.bind(window.localStorage);
         const self = this;
-        window.localStorage.setItem = function (key, value) {
+        window.localStorage.setItem = function(key, value) {
           originalSetItem(key, value);
           if (SYNC_KEYS.includes(key) && !self._suppressSync && self.isConnected) {
             try {
@@ -1484,7 +1484,7 @@
           if (window.FirebaseSync && typeof window.FirebaseSync.reRenderCurrentView === 'function') {
             window.FirebaseSync.reRenderCurrentView(e.key);
           }
-        } catch (err) { }
+        } catch (err) {}
       }
     });
   }
