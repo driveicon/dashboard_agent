@@ -2146,6 +2146,30 @@ const UI = {
   btnCancelCaModal: document.getElementById('btnCancelCaModal'),
   btnSubmitCa: document.getElementById('btnSubmitCa'),
   btnSubmitCaText: document.getElementById('btnSubmitCaText'),
+  formCaTicketNo: document.getElementById('formCaTicketNo'),
+
+  // Modal CA Detail Elements
+  modalCaDetail: document.getElementById('modalCaDetail'),
+  caDetailModalTitle: document.getElementById('caDetailModalTitle'),
+  btnCloseCaDetailModal: document.getElementById('btnCloseCaDetailModal'),
+  caDetailUserAvatar: document.getElementById('caDetailUserAvatar'),
+  caDetailUserName: document.getElementById('caDetailUserName'),
+  caDetailUserUsername: document.getElementById('caDetailUserUsername'),
+  caDetailUserDept: document.getElementById('caDetailUserDept'),
+  caDetailScore: document.getElementById('caDetailScore'),
+  caDetailGradeBadge: document.getElementById('caDetailGradeBadge'),
+  caDetailPassBadge: document.getElementById('caDetailPassBadge'),
+  caDetailTicketId: document.getElementById('caDetailTicketId'),
+  caDetailDate: document.getElementById('caDetailDate'),
+  caDetailChannel: document.getElementById('caDetailChannel'),
+  caDetailFocusParam: document.getElementById('caDetailFocusParam'),
+  caDetailNotes: document.getElementById('caDetailNotes'),
+  caDetailCreatedBy: document.getElementById('caDetailCreatedBy'),
+  caDetailCreatedAt: document.getElementById('caDetailCreatedAt'),
+  caDetailUpdatedWrap: document.getElementById('caDetailUpdatedWrap'),
+  caDetailUpdatedAt: document.getElementById('caDetailUpdatedAt'),
+  caDetailBtnEdit: document.getElementById('caDetailBtnEdit'),
+  btnCloseCaDetailBtn: document.getElementById('btnCloseCaDetailBtn'),
 
   // CA Google Spreadsheet Elements
   btnOpenCaGoogleSheetsModal: document.getElementById('btnOpenCaGoogleSheetsModal'),
@@ -2528,6 +2552,27 @@ const UI = {
   btnCancelFindingModal: document.getElementById('btnCancelFindingModal'),
   btnSubmitFinding: document.getElementById('btnSubmitFinding'),
   btnSubmitFindingText: document.getElementById('btnSubmitFindingText'),
+
+  // Modal Finding Detail Elements
+  modalFindingDetail: document.getElementById('modalFindingDetail'),
+  findingDetailModalTitle: document.getElementById('findingDetailModalTitle'),
+  btnCloseFindingDetailModal: document.getElementById('btnCloseFindingDetailModal'),
+  findingDetailId: document.getElementById('findingDetailId'),
+  findingDetailTypeBadge: document.getElementById('findingDetailTypeBadge'),
+  findingDetailCategoryBadge: document.getElementById('findingDetailCategoryBadge'),
+  findingDetailDate: document.getElementById('findingDetailDate'),
+  findingDetailDevBadge: document.getElementById('findingDetailDevBadge'),
+  findingDetailStatusBadge: document.getElementById('findingDetailStatusBadge'),
+  findingDetailUserAvatar: document.getElementById('findingDetailUserAvatar'),
+  findingDetailUserName: document.getElementById('findingDetailUserName'),
+  findingDetailUserUsername: document.getElementById('findingDetailUserUsername'),
+  findingDetailDept: document.getElementById('findingDetailDept'),
+  findingDetailDesc: document.getElementById('findingDetailDesc'),
+  findingDetailActionPlan: document.getElementById('findingDetailActionPlan'),
+  findingDetailCommitment: document.getElementById('findingDetailCommitment'),
+  findingDetailCreatedAt: document.getElementById('findingDetailCreatedAt'),
+  findingDetailBtnEdit: document.getElementById('findingDetailBtnEdit'),
+  btnCloseFindingDetailBtn: document.getElementById('btnCloseFindingDetailBtn'),
 
   // Finding Google Spreadsheet Elements
   btnOpenFindingGoogleSheetsModal: document.getElementById('btnOpenFindingGoogleSheetsModal'),
@@ -4347,23 +4392,23 @@ function getCaDynamicColor(scoreNum, hasData = true) {
   const barColor = `linear-gradient(90deg, hsla(${Math.max(0, hue - 20)}, 92%, 48%, 0.85), hsl(${hue}, 88%, 50%))`;
 
   let grade = 'Perlu Coaching';
-  let passStatus = 'Remedial SOP (<85.00)';
+  let passStatus = 'Remedial SOP';
   let passClass = 'badge-red';
   let passIcon = 'fa-solid fa-triangle-exclamation';
 
   if (scoreNum >= 95.0) {
     grade = 'Sangat Baik (≥95.00)';
-    passStatus = 'Lulus SOP (≥85.00)';
+    passStatus = 'Lulus SOP';
     passClass = 'badge-green';
     passIcon = 'fa-solid fa-check';
   } else if (scoreNum >= 85.0) {
     grade = 'Baik (Sedang)';
-    passStatus = 'Lulus SOP (≥85.00)';
+    passStatus = 'Lulus SOP';
     passClass = 'badge-green';
     passIcon = 'fa-solid fa-check';
   } else if (scoreNum >= 75.0) {
     grade = 'Cukup';
-    passStatus = 'Remedial SOP (<85.00)';
+    passStatus = 'Remedial SOP';
     passClass = 'badge-yellow';
     passIcon = 'fa-solid fa-triangle-exclamation';
   }
@@ -4595,7 +4640,7 @@ function updateOverviewLegendAndTitles() {
     if (badgeEl) badgeEl.innerHTML = '<i class="fa-solid fa-headset"></i> AHT (SLA ≤300s)';
   } else {
     // ALL
-    if (titleEl) titleEl.textContent = 'Ringkasan Perolehan Kinerja User';
+    if (titleEl) titleEl.textContent = 'Ringkasan Perolehan User';
     if (badgeEl) badgeEl.innerHTML = '<i class="fa-solid fa-chart-pie"></i> Semua (CA, Tiket, ART, AHT)';
   }
 }
@@ -4856,7 +4901,6 @@ function renderOverviewPage() {
               ${sortIcon('aht')}
             </div>
           </th>
-          <th style="text-align: center; width: 120px;">Kinerja</th>
         </tr>
       `;
     }
@@ -5114,9 +5158,6 @@ function renderOverviewPage() {
             <span style="color: ${caColor.color}; font-weight: 800; font-family: monospace; font-size: 0.98rem; text-shadow: 0 0 8px ${caColor.color}44;">
               ${caScoreFormatted}
             </span>
-            <span class="badge ${caColor.passClass}" style="font-size: 0.65rem; padding: 1px 6px;">
-              ${caColor.passStatus}
-            </span>
           </div>
           <div class="ca-mini-bar-track" style="margin-top: 4px;">
             <div class="ca-mini-bar-fill" style="width: ${Math.min(100, Math.max(0, item.caAvg))}%; background: ${caColor.barColor};"></div>
@@ -5140,9 +5181,6 @@ function renderOverviewPage() {
             <span style="color: ${artColor.color}; font-weight: 800; font-family: monospace; font-size: 0.98rem; text-shadow: 0 0 8px ${artColor.color}44;">
               ${item.hasArt ? item.avgArtSec.toFixed(1) + 's' : '-'}
             </span>
-            <span class="badge ${artColor.badgeClass}" style="font-size: 0.65rem; padding: 1px 6px;">
-              ${artColor.grade}
-            </span>
           </div>
           <div class="ca-mini-bar-track" style="margin-top: 4px;">
             <div class="ca-mini-bar-fill" style="width: ${Math.min(100, Math.max(0, (item.avgArtSec / 45) * 100))}%; background: ${artColor.barColor};"></div>
@@ -5153,21 +5191,10 @@ function renderOverviewPage() {
             <span style="color: ${ahtColor.color}; font-weight: 800; font-family: monospace; font-size: 0.98rem; text-shadow: 0 0 8px ${ahtColor.color}44;">
               ${item.hasAht ? Math.round(item.avgAhtSec) + 's' : '-'}
             </span>
-            <span class="badge ${ahtColor.badgeClass}" style="font-size: 0.65rem; padding: 1px 6px;">
-              ${ahtColor.grade}
-            </span>
           </div>
           <div class="ca-mini-bar-track" style="margin-top: 4px;">
             <div class="ca-mini-bar-fill" style="width: ${Math.min(100, Math.max(0, (item.avgAhtSec / 360) * 100))}%; background: ${ahtColor.barColor};"></div>
           </div>
-        </td>
-        <td style="text-align: center;">
-          ${(item.caAvg >= 85 && item.tiketCount >= 1056 && item.avgArtSec <= 30 && (!item.hasAht || item.avgAhtSec <= 300))
-            ? '<span class="badge badge-green"><i class="fa-solid fa-star"></i> Prima</span>'
-            : (item.caAvg >= 80 || item.tiketCount >= 900)
-              ? '<span class="badge badge-yellow"><i class="fa-solid fa-circle-check"></i> Baik</span>'
-              : '<span class="badge badge-red"><i class="fa-solid fa-circle-exclamation"></i> Evaluasi</span>'
-          }
         </td>
       `;
     }
@@ -10235,7 +10262,7 @@ function renderCaPage() {
 
   if (filteredLogs.length === 0) {
     const tr = document.createElement('tr');
-    tr.innerHTML = `<td colspan="${isAdmin ? 10 : 9}" style="text-align: center; padding: 36px; color: var(--gray-400);"><i class="fa-regular fa-folder-open" style="font-size:1.8rem; display:block; margin-bottom:8px; opacity:0.6;"></i>${isAdmin ? 'Tidak ada log penilaian harian yang sesuai dengan filter atau bulan terpilih.' : 'Belum ada log penilaian harian untuk Anda pada bulan terpilih.'}</td>`;
+    tr.innerHTML = `<td colspan="${isAdmin ? 11 : 10}" style="text-align: center; padding: 36px; color: var(--gray-400);"><i class="fa-regular fa-folder-open" style="font-size:1.8rem; display:block; margin-bottom:8px; opacity:0.6;"></i>${isAdmin ? 'Tidak ada log penilaian harian yang sesuai dengan filter atau bulan terpilih.' : 'Belum ada log penilaian harian untuk Anda pada bulan terpilih.'}</td>`;
     UI.caTableBody.appendChild(tr);
     return;
   }
@@ -10247,11 +10274,14 @@ function renderCaPage() {
     if (item.grade === 'Baik') gradeBadge = 'badge-blue';
     else if (item.grade === 'Perlu Coaching') gradeBadge = 'badge-yellow';
 
-    // Action buttons: Admin can edit & delete, User is read-only
+    // Action buttons: Admin can view detail, edit & delete; User can view detail
     let actionCell = '';
     if (isAdmin) {
       actionCell = `
-        <div style="display:inline-flex; gap:6px; justify-content:center;">
+        <div style="display:inline-flex; gap:5px; justify-content:center; align-items:center;">
+          <button class="btn btn-icon btn-sm" onclick="openCaDetailModal('${item.id}')" title="Lihat Detail Sampling Tiket">
+            <i class="fa-solid fa-eye text-cyan"></i>
+          </button>
           <button class="btn btn-icon btn-sm" onclick="promptEditCa('${item.id}')" title="Edit Nilai CA">
             <i class="fa-solid fa-pen-to-square text-silver"></i>
           </button>
@@ -10262,9 +10292,9 @@ function renderCaPage() {
       `;
     } else {
       actionCell = `
-        <span class="badge badge-gray" style="font-size:0.72rem; padding:4px 8px;" title="Mode Tinjauan (Read-Only)">
-          <i class="fa-solid fa-eye text-silver" style="margin-right:4px;"></i>Hanya Lihat
-        </span>
+        <button class="btn btn-outline-gray btn-sm" onclick="openCaDetailModal('${item.id}')" title="Lihat Detail Sampling Tiket" style="font-size:0.75rem; padding:4px 8px;">
+          <i class="fa-solid fa-eye text-cyan" style="margin-right:4px;"></i>Detail
+        </button>
       `;
     }
 
@@ -10293,6 +10323,11 @@ function renderCaPage() {
           </div>
         </div>
       </td>
+      <td style="text-align: center;">
+        <span class="badge badge-gray font-mono" onclick="openCaDetailModal('${item.id}')" title="Klik untuk lihat detail sampling tiket" style="cursor: pointer; font-size: 0.75rem; border: 1px solid rgba(255,255,255,0.12);">
+          <i class="fa-solid fa-ticket text-red" style="margin-right: 4px;"></i>${item.ticketNo || item.id}
+        </span>
+      </td>
       <td><span class="badge badge-gray" style="font-size:0.72rem;"><i class="fa-solid fa-headset text-red" style="margin-right:4px;"></i>${item.department}</span></td>
       <td><span class="badge badge-gray" style="font-size:0.72rem;">${item.channel}</span></td>
       <td style="text-align: right;"><strong class="text-red font-mono" style="font-size:1.05rem;">${formatCaScore(item.score)}</strong></td>
@@ -10312,6 +10347,7 @@ function openAddCaModal() {
   }
   if (UI.formCa) UI.formCa.reset();
   if (UI.formCaId) UI.formCaId.value = '';
+  if (UI.formCaTicketNo) UI.formCaTicketNo.value = '';
   if (UI.modalCaTitle) UI.modalCaTitle.textContent = 'Input Penilaian CA Harian';
   if (UI.modalCaSubtitle) {
     UI.modalCaSubtitle.textContent = '';
@@ -10355,6 +10391,7 @@ window.promptEditCa = function(id) {
 
   if (UI.formCa) UI.formCa.reset();
   if (UI.formCaId) UI.formCaId.value = item.id;
+  if (UI.formCaTicketNo) UI.formCaTicketNo.value = item.ticketNo || '';
   if (UI.modalCaTitle) UI.modalCaTitle.textContent = 'Edit Penilaian CA Harian';
   if (UI.modalCaSubtitle) {
     UI.modalCaSubtitle.textContent = '';
@@ -10387,6 +10424,88 @@ function closeCaModal() {
   if (UI.modalCaForm) UI.modalCaForm.classList.add('hidden');
 }
 
+function openCaDetailModal(id) {
+  const logs = state.getCaLogs ? state.getCaLogs() : [];
+  const item = logs.find(l => l.id === id);
+  if (!item) {
+    showToast('Data Tidak Ditemukan', 'Data sampling tiket CA tidak ditemukan.', 'danger');
+    return;
+  }
+  const allUsers = (state.getUsers ? state.getUsers() : []) || [];
+  const user = allUsers.find(u => u.fullName === item.userFullName || (item.username && u.username === item.username));
+  const username = item.username || (user ? user.username : '') || '-';
+  const fullName = item.userFullName || (user ? user.fullName : '-') || '-';
+  const dept = item.department || (user ? user.department : 'CSO');
+  const avatarChar = fullName.charAt(0).toUpperCase();
+
+  const numScore = parseFloat(item.score) || 0;
+  const isPass = numScore >= 85.00;
+
+  if (UI.caDetailModalTitle) {
+    UI.caDetailModalTitle.textContent = `Detail Tiket Sampling CA: ${item.ticketNo || item.id}`;
+  }
+  if (UI.caDetailUserAvatar) {
+    if (user && user.avatar) {
+      UI.caDetailUserAvatar.innerHTML = `<img src="${user.avatar}" alt="${fullName}" style="width:100%; height:100%; border-radius:50%; object-fit:cover;">`;
+    } else {
+      UI.caDetailUserAvatar.innerHTML = avatarChar;
+    }
+  }
+  if (UI.caDetailUserName) UI.caDetailUserName.textContent = fullName;
+  if (UI.caDetailUserUsername) UI.caDetailUserUsername.textContent = username !== '-' ? `@${username}` : '';
+  if (UI.caDetailUserDept) UI.caDetailUserDept.innerHTML = `<i class="fa-solid fa-headset text-red" style="margin-right:4px;"></i>${dept}`;
+
+  if (UI.caDetailScore) UI.caDetailScore.textContent = formatCaScore(item.score);
+  if (UI.caDetailGradeBadge) {
+    let gradeBadgeClass = 'badge-green';
+    if (item.grade === 'Baik') gradeBadgeClass = 'badge-blue';
+    else if (item.grade === 'Perlu Coaching') gradeBadgeClass = 'badge-yellow';
+    UI.caDetailGradeBadge.className = `badge ${gradeBadgeClass}`;
+    UI.caDetailGradeBadge.textContent = item.grade || (numScore >= 95 ? 'Sangat Baik' : (numScore >= 85 ? 'Baik' : 'Perlu Coaching'));
+  }
+  if (UI.caDetailPassBadge) {
+    UI.caDetailPassBadge.className = `badge ${isPass ? 'badge-green' : 'badge-yellow'}`;
+    UI.caDetailPassBadge.textContent = isPass ? 'Lulus SOP' : 'Remedial SOP';
+  }
+
+  if (UI.caDetailTicketId) UI.caDetailTicketId.textContent = item.ticketNo || item.id;
+  if (UI.caDetailDate) UI.caDetailDate.textContent = item.date || '-';
+  if (UI.caDetailChannel) UI.caDetailChannel.textContent = item.channel || '-';
+  if (UI.caDetailFocusParam) UI.caDetailFocusParam.textContent = item.focusParam || '-';
+  if (UI.caDetailNotes) UI.caDetailNotes.textContent = item.notes ? item.notes : 'Tidak ada catatan atau umpan balik khusus dari QA.';
+
+  if (UI.caDetailCreatedBy) UI.caDetailCreatedBy.textContent = item.createdBy || 'Administrator QA';
+  if (UI.caDetailCreatedAt) UI.caDetailCreatedAt.textContent = item.createdAt || item.date || '-';
+
+  if (UI.caDetailUpdatedWrap) {
+    if (item.updatedAt) {
+      UI.caDetailUpdatedWrap.classList.remove('hidden');
+      if (UI.caDetailUpdatedAt) UI.caDetailUpdatedAt.textContent = `${item.updatedAt} (${item.updatedBy || 'Admin'})`;
+    } else {
+      UI.caDetailUpdatedWrap.classList.add('hidden');
+    }
+  }
+
+  // Edit button in modal: visible for Admin only
+  if (UI.caDetailBtnEdit) {
+    const isAdmin = state.isAdmin();
+    UI.caDetailBtnEdit.classList.toggle('hidden', !isAdmin);
+    UI.caDetailBtnEdit.onclick = function() {
+      closeCaDetailModal();
+      promptEditCa(item.id);
+    };
+  }
+
+  if (UI.modalCaDetail) UI.modalCaDetail.classList.remove('hidden');
+}
+
+function closeCaDetailModal() {
+  if (UI.modalCaDetail) UI.modalCaDetail.classList.add('hidden');
+}
+
+window.openCaDetailModal = openCaDetailModal;
+window.closeCaDetailModal = closeCaDetailModal;
+
 function handleSaveCa(e) {
   e.preventDefault();
   if (!state.isAdmin()) {
@@ -10397,6 +10516,7 @@ function handleSaveCa(e) {
   if (!u) return;
 
   const editId = UI.formCaId ? UI.formCaId.value.trim() : '';
+  const ticketNo = UI.formCaTicketNo ? UI.formCaTicketNo.value.trim() : '';
   const date = (UI.formCaDate ? UI.formCaDate.value : '') || new Date().toISOString().slice(0, 10);
   const userFullName = (UI.formCaUserSelect ? UI.formCaUserSelect.value : '') || u.fullName;
   const allUsers = (state.getUsers ? state.getUsers() : []) || [];
@@ -10419,6 +10539,7 @@ function handleSaveCa(e) {
     // Update existing entry
     const idx = logs.findIndex(l => l.id === editId);
     if (idx !== -1) {
+      logs[idx].ticketNo = ticketNo;
       logs[idx].date = date;
       logs[idx].username = username;
       logs[idx].userFullName = finalFullName;
@@ -10439,6 +10560,7 @@ function handleSaveCa(e) {
     // Create new entry
     const newEntry = {
       id: 'ca_' + Date.now(),
+      ticketNo,
       date,
       username,
       userFullName: finalFullName,
@@ -16963,6 +17085,9 @@ function renderFindingPage() {
 
     const actionHtml = isAdmin ? `
       <td style="text-align:center; white-space:nowrap;">
+        <button class="btn btn-icon btn-sm" onclick="openFindingDetailModal('${item.id}')" title="Lihat Detail Finding" style="margin-right:4px;">
+          <i class="fa-solid fa-eye text-cyan"></i>
+        </button>
         <button class="btn btn-icon btn-sm" onclick="openEditFindingModal('${item.id}')" title="Edit Temuan" style="margin-right:4px;">
           <i class="fa-solid fa-pen-to-square text-blue"></i>
         </button>
@@ -16971,16 +17096,16 @@ function renderFindingPage() {
         </button>
       </td>
     ` : `
-      <td style="text-align:center;">
-        <span class="badge badge-gray" style="font-size:0.75rem; padding:4px 8px;" title="Mode Tinjauan (Read-Only)">
-          <i class="fa-solid fa-eye text-silver" style="margin-right:4px;"></i>Hanya Lihat
-        </span>
+      <td style="text-align:center; white-space:nowrap;">
+        <button class="btn btn-outline-gray btn-sm" onclick="openFindingDetailModal('${item.id}')" title="Lihat Detail Finding" style="font-size:0.75rem; padding:4px 8px;">
+          <i class="fa-solid fa-eye text-cyan" style="margin-right:4px;"></i>Detail
+        </button>
       </td>
     `;
 
     tr.innerHTML = `
       ${checkboxHtml}
-      <td><span class="text-red font-mono" style="font-weight:700;">${item.id}</span></td>
+      <td><span class="text-red font-mono" style="font-weight:700; cursor:pointer;" onclick="openFindingDetailModal('${item.id}')" title="Klik untuk lihat detail finding">${item.id}</span></td>
       <td><span style="font-size:0.8rem; color:var(--gray-300);">${item.date || '-'}</span></td>
       <td><span style="font-weight:600; color:#fff;">${item.userFullName}</span></td>
       <td><span class="badge badge-gray" style="font-size:0.75rem;"><i class="fa-solid fa-headset text-red" style="margin-right:4px;"></i>${item.department}</span></td>
@@ -17114,6 +17239,105 @@ window.openEditFindingModal = function(id) {
 function closeFindingModal() {
   if (UI.modalFindingForm) UI.modalFindingForm.classList.add('hidden');
 }
+
+function openFindingDetailModal(id) {
+  const findings = state.getFindings ? state.getFindings() : [];
+  const item = findings.find(f => f.id === id);
+  if (!item) {
+    showToast('Data Tidak Ditemukan', `Temuan audit ${id} tidak ditemukan.`, 'danger');
+    return;
+  }
+  const allUsers = (state.getUsers ? state.getUsers() : []) || [];
+  const user = allUsers.find(u => u.fullName === item.userFullName || (item.username && u.username === item.username) || (item.userId && u.id === item.userId));
+  const username = item.username || (user ? user.username : '') || '-';
+  const fullName = item.userFullName || item.fullName || (user ? user.fullName : '-') || '-';
+  const dept = item.department || (user ? user.department : 'CSO INBOUND');
+  const avatarChar = fullName.charAt(0).toUpperCase();
+
+  if (UI.findingDetailModalTitle) {
+    UI.findingDetailModalTitle.textContent = `Detail Catatan Finding: ${item.id}`;
+  }
+  if (UI.findingDetailId) UI.findingDetailId.textContent = item.id;
+
+  // Type badge
+  if (UI.findingDetailTypeBadge) {
+    let typeBadgeClass = 'badge-yellow';
+    if (item.findingType === 'Feedback Positif') {
+      typeBadgeClass = 'badge-green';
+    } else if (!item.findingType || item.findingType === '-') {
+      typeBadgeClass = 'badge-gray';
+    }
+    UI.findingDetailTypeBadge.className = `badge ${typeBadgeClass}`;
+    UI.findingDetailTypeBadge.textContent = (item.findingType && item.findingType !== '-') ? item.findingType : 'Audit QA';
+  }
+
+  // Category badge
+  if (UI.findingDetailCategoryBadge) {
+    UI.findingDetailCategoryBadge.innerHTML = `<i class="fa-solid fa-tag text-silver" style="margin-right:4px;"></i>${item.category || '-'}`;
+  }
+
+  if (UI.findingDetailDate) UI.findingDetailDate.textContent = item.date || '-';
+
+  // Deviation badge
+  if (UI.findingDetailDevBadge) {
+    let devBadge = 'badge-yellow';
+    if ((item.deviationLevel || '').startsWith('Korektif')) {
+      devBadge = 'badge-blue';
+    } else if ((item.deviationLevel || '').startsWith('SP')) {
+      devBadge = 'badge-red glow-effect-red';
+    }
+    UI.findingDetailDevBadge.className = `badge ${devBadge}`;
+    UI.findingDetailDevBadge.textContent = item.deviationLevel || '-';
+  }
+
+  // Status badge
+  if (UI.findingDetailStatusBadge) {
+    let statBadge = 'badge-yellow';
+    if (item.status === 'Dalam Coaching') statBadge = 'badge-blue';
+    else if (item.status === 'Closed') statBadge = 'badge-green';
+    UI.findingDetailStatusBadge.className = `badge ${statBadge}`;
+    UI.findingDetailStatusBadge.textContent = item.status || 'Open';
+  }
+
+  // Officer info
+  if (UI.findingDetailUserAvatar) {
+    if (user && user.avatar) {
+      UI.findingDetailUserAvatar.innerHTML = `<img src="${user.avatar}" alt="${fullName}" style="width:100%; height:100%; border-radius:50%; object-fit:cover;">`;
+    } else {
+      UI.findingDetailUserAvatar.innerHTML = avatarChar;
+    }
+  }
+  if (UI.findingDetailUserName) UI.findingDetailUserName.textContent = fullName;
+  if (UI.findingDetailUserUsername) UI.findingDetailUserUsername.textContent = username !== '-' ? `@${username}` : '';
+  if (UI.findingDetailDept) UI.findingDetailDept.innerHTML = `<i class="fa-solid fa-headset text-red" style="margin-right:4px;"></i>${dept}`;
+
+  // Description, Action Plan, Commitment
+  if (UI.findingDetailDesc) UI.findingDetailDesc.textContent = item.desc || '-';
+  if (UI.findingDetailActionPlan) UI.findingDetailActionPlan.textContent = item.actionPlan || 'Belum ada action plan perbaikan.';
+  if (UI.findingDetailCommitment) UI.findingDetailCommitment.textContent = item.commitment || 'Belum ada komitmen petugas.';
+
+  // Metadata
+  if (UI.findingDetailCreatedAt) UI.findingDetailCreatedAt.textContent = item.createdAt || item.date || '-';
+
+  // Edit button in modal: visible for Admin only
+  if (UI.findingDetailBtnEdit) {
+    const isAdmin = state.isAdmin();
+    UI.findingDetailBtnEdit.classList.toggle('hidden', !isAdmin);
+    UI.findingDetailBtnEdit.onclick = function() {
+      closeFindingDetailModal();
+      openEditFindingModal(item.id);
+    };
+  }
+
+  if (UI.modalFindingDetail) UI.modalFindingDetail.classList.remove('hidden');
+}
+
+function closeFindingDetailModal() {
+  if (UI.modalFindingDetail) UI.modalFindingDetail.classList.add('hidden');
+}
+
+window.openFindingDetailModal = openFindingDetailModal;
+window.closeFindingDetailModal = closeFindingDetailModal;
 
 function handleSaveFinding(e) {
   e.preventDefault();
@@ -18459,6 +18683,13 @@ function initEvents() {
   }
   if (UI.btnCloseCaModal) UI.btnCloseCaModal.addEventListener('click', closeCaModal);
   if (UI.btnCancelCaModal) UI.btnCancelCaModal.addEventListener('click', closeCaModal);
+  if (UI.btnCloseCaDetailModal) UI.btnCloseCaDetailModal.addEventListener('click', closeCaDetailModal);
+  if (UI.btnCloseCaDetailBtn) UI.btnCloseCaDetailBtn.addEventListener('click', closeCaDetailModal);
+  if (UI.modalCaDetail) {
+    UI.modalCaDetail.addEventListener('click', (e) => {
+      if (e.target === UI.modalCaDetail) closeCaDetailModal();
+    });
+  }
   if (UI.formCa) UI.formCa.addEventListener('submit', handleSaveCa);
   if (UI.filterCaMonth) UI.filterCaMonth.addEventListener('change', () => {
     state.selectedCaIds.clear();
@@ -19094,6 +19325,13 @@ function initEvents() {
   }
   if (UI.btnCloseFindingModal) UI.btnCloseFindingModal.addEventListener('click', closeFindingModal);
   if (UI.btnCancelFindingModal) UI.btnCancelFindingModal.addEventListener('click', closeFindingModal);
+  if (UI.btnCloseFindingDetailModal) UI.btnCloseFindingDetailModal.addEventListener('click', closeFindingDetailModal);
+  if (UI.btnCloseFindingDetailBtn) UI.btnCloseFindingDetailBtn.addEventListener('click', closeFindingDetailModal);
+  if (UI.modalFindingDetail) {
+    UI.modalFindingDetail.addEventListener('click', (e) => {
+      if (e.target === UI.modalFindingDetail) closeFindingDetailModal();
+    });
+  }
   if (UI.formFinding) UI.formFinding.addEventListener('submit', handleSaveFinding);
   if (UI.formFindingUser) {
     UI.formFindingUser.addEventListener('change', (e) => {

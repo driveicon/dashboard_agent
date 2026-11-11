@@ -1209,13 +1209,14 @@
                     </th>
                     <th>Tanggal Evaluasi</th>
                     <th>Petugas CSO</th>
+                    <th style="text-align: center;">No. Tiket / ID</th>
                     <th>Layanan</th>
                     <th>Channel</th>
                     <th style="text-align: right;">Nilai CA</th>
                     <th>Kategori Mutu</th>
                     <th>Parameter Utama</th>
                     <th>Catatan Harian</th>
-                    <th style="width: 120px; text-align: center;">Aksi</th>
+                    <th style="width: 130px; text-align: center;">Aksi</th>
                   </tr>
                 </thead>
                 <tbody id="caTableBody">
@@ -5032,6 +5033,18 @@
             </div>
 
             <div class="form-group flex-1">
+              <label for="formCaTicketNo" class="form-label">
+                No. Tiket / ID Sampling <span style="font-weight: normal; color: var(--gray-400); font-size: 0.8rem;">(Opsional)</span>
+              </label>
+              <div class="input-with-icon">
+                <i class="fa-solid fa-ticket input-icon"></i>
+                <input type="text" id="formCaTicketNo" class="form-control" placeholder="Contoh: TKT-2026-89102">
+              </div>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group flex-1">
               <label for="formCaChannel" class="form-label">Channel Interaksi <span class="required">*</span></label>
               <select id="formCaChannel" class="form-control" required>
                 <option value="Live Chat WA">Live Chat WA</option>
@@ -5042,9 +5055,7 @@
                 <option value="Back Office">Back Office</option>
               </select>
             </div>
-          </div>
 
-          <div class="form-row">
             <div class="form-group flex-1">
               <label for="formCaScore" class="form-label">Skor Nilai CA (Desimal) <span class="required">*</span></label>
               <div class="input-with-icon">
@@ -5053,6 +5064,7 @@
               </div>
               <small class="form-hint hidden">&ge;95,00 Sangat Baik, 85,00 - 94,99 Baik, &lt;85,00 Perlu Coaching</small>
             </div>
+          </div>
 
             <div class="form-group flex-1">
               <label for="formCaGradeVal" class="form-label">Kategori Mutu</label>
@@ -5083,6 +5095,105 @@
           </button>
         </div>
       </form>
+    </div>
+  </div>
+
+  <!-- ==================== MODAL: DETAIL SAMPLING TIKET CA ==================== -->
+  <div class="modal-backdrop hidden" id="modalCaDetail">
+    <div class="modal-dialog glass-panel" style="max-width: 620px;">
+      <div class="modal-header">
+        <div class="modal-title-group">
+          <div class="modal-icon-badge bg-red-gradient">
+            <i class="fa-solid fa-clipboard-check"></i>
+          </div>
+          <div>
+            <h3 class="modal-title" id="caDetailModalTitle">Detail Tiket Sampling CA</h3>
+            <p class="modal-subtitle">Informasi lengkap evaluasi mutu dan parameter sampling interaksi</p>
+          </div>
+        </div>
+        <button class="modal-close-btn" id="btnCloseCaDetailModal" aria-label="Tutup Modal">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <div class="modal-body">
+        <!-- Header summary card with Score, Grade, Status -->
+        <div class="detail-header-card glass-subpanel" style="padding: 16px; border-radius: 8px; margin-bottom: 16px; background: rgba(20, 24, 34, 0.75); border: 1px solid var(--border-color);">
+          <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
+            <div style="display:flex; align-items:center; gap:12px;">
+              <div id="caDetailUserAvatar" class="user-avatar-circle" style="width:44px; height:44px; border-radius:50%; background:var(--primary); color:#fff; display:flex; align-items:center; justify-content:center; font-size:16px; font-weight:700;">
+                U
+              </div>
+              <div>
+                <h4 id="caDetailUserName" style="margin:0; font-size:1.05rem; color:#fff; font-weight:700;">-</h4>
+                <div style="display:flex; align-items:center; gap:8px; margin-top:3px;">
+                  <span id="caDetailUserUsername" class="font-mono text-muted" style="font-size:0.75rem;">@username</span>
+                  <span id="caDetailUserDept" class="badge badge-gray" style="font-size:0.7rem;"><i class="fa-solid fa-headset text-red" style="margin-right:4px;"></i>CSO</span>
+                </div>
+              </div>
+            </div>
+            <div style="text-align:right;">
+              <div style="font-size:0.72rem; color:var(--gray-400); text-transform:uppercase; letter-spacing:0.5px; font-weight:600;">Skor Nilai CA</div>
+              <div id="caDetailScore" class="text-red font-mono" style="font-size:1.7rem; font-weight:800; line-height:1.1;">95.00</div>
+              <div style="display:flex; gap:6px; justify-content:flex-end; margin-top:4px;">
+                <span id="caDetailGradeBadge" class="badge badge-green" style="font-size:0.7rem;">Sangat Baik</span>
+                <span id="caDetailPassBadge" class="badge badge-green" style="font-size:0.7rem;">Lulus SOP</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Detail Grid Info -->
+        <div class="detail-grid" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(135px, 1fr)); gap:10px; margin-bottom:14px;">
+          <div class="detail-item-box glass-subpanel" style="padding:10px 12px; border-radius:6px; background:rgba(15,20,30,0.6);">
+            <span class="detail-box-label" style="font-size:0.72rem; color:var(--gray-400); display:block; margin-bottom:3px;"><i class="fa-solid fa-ticket text-red" style="margin-right:4px;"></i>No. Tiket / ID</span>
+            <span class="detail-box-val font-mono" id="caDetailTicketId" style="font-weight:700; color:#fff; font-size:0.85rem;">-</span>
+          </div>
+          <div class="detail-item-box glass-subpanel" style="padding:10px 12px; border-radius:6px; background:rgba(15,20,30,0.6);">
+            <span class="detail-box-label" style="font-size:0.72rem; color:var(--gray-400); display:block; margin-bottom:3px;"><i class="fa-regular fa-calendar text-red" style="margin-right:4px;"></i>Tanggal Sampling</span>
+            <span class="detail-box-val font-mono" id="caDetailDate" style="font-weight:700; color:var(--gray-200); font-size:0.85rem;">-</span>
+          </div>
+          <div class="detail-item-box glass-subpanel" style="padding:10px 12px; border-radius:6px; background:rgba(15,20,30,0.6);">
+            <span class="detail-box-label" style="font-size:0.72rem; color:var(--gray-400); display:block; margin-bottom:3px;"><i class="fa-solid fa-comments text-cyan" style="margin-right:4px;"></i>Channel</span>
+            <span class="detail-box-val" id="caDetailChannel" style="font-weight:600; color:#fff; font-size:0.85rem;">-</span>
+          </div>
+          <div class="detail-item-box glass-subpanel" style="padding:10px 12px; border-radius:6px; background:rgba(15,20,30,0.6);">
+            <span class="detail-box-label" style="font-size:0.72rem; color:var(--gray-400); display:block; margin-bottom:3px;"><i class="fa-solid fa-bullseye text-yellow" style="margin-right:4px;"></i>Target Baku SOP</span>
+            <span class="detail-box-val font-mono" style="font-weight:700; color:var(--green-status); font-size:0.85rem;">&ge; 85.00</span>
+          </div>
+        </div>
+
+        <!-- Parameter Utama Fokus Evaluasi -->
+        <div class="glass-subpanel" style="padding:12px 14px; border-radius:6px; margin-bottom:12px; background:rgba(15,20,30,0.6); border-left:3px solid var(--accent-red);">
+          <span style="font-size:0.75rem; font-weight:700; color:var(--gray-300); text-transform:uppercase; display:flex; align-items:center; gap:6px; margin-bottom:6px;">
+            <i class="fa-solid fa-list-check text-red"></i> Parameter Utama Fokus Evaluasi:
+          </span>
+          <div id="caDetailFocusParam" style="color:#ffffff; font-size:0.86rem; line-height:1.45;">-</div>
+        </div>
+
+        <!-- Catatan & Umpan Balik QA -->
+        <div class="glass-subpanel" style="padding:12px 14px; border-radius:6px; margin-bottom:12px; background:rgba(15,20,30,0.6); border-left:3px solid #3b82f6;">
+          <span style="font-size:0.75rem; font-weight:700; color:var(--gray-300); text-transform:uppercase; display:flex; align-items:center; gap:6px; margin-bottom:6px;">
+            <i class="fa-solid fa-comment-dots text-blue"></i> Catatan &amp; Umpan Balik QA Harian:
+          </span>
+          <div id="caDetailNotes" style="color:#ffffff; font-size:0.86rem; line-height:1.5; white-space:pre-wrap;">-</div>
+        </div>
+
+        <!-- Audit Metadata -->
+        <div style="display:flex; justify-content:space-between; align-items:center; font-size:0.75rem; color:var(--gray-400); padding:4px 2px; flex-wrap:wrap; gap:6px;">
+          <div><i class="fa-solid fa-user-check text-silver" style="margin-right:4px;"></i>Dicatat: <span id="caDetailCreatedBy" class="text-white">-</span> (<span id="caDetailCreatedAt">-</span>)</div>
+          <div id="caDetailUpdatedWrap" class="hidden"><i class="fa-solid fa-clock-rotate-left text-silver" style="margin-right:4px;"></i>Diperbarui: <span id="caDetailUpdatedAt">-</span></div>
+        </div>
+      </div>
+
+      <div class="modal-footer" style="display:flex; justify-content:space-between; align-items:center;">
+        <div>
+          <button type="button" class="btn btn-outline-cyan btn-sm hidden" id="caDetailBtnEdit">
+            <i class="fa-solid fa-pen-to-square"></i> <span>Edit Penilaian Ini</span>
+          </button>
+        </div>
+        <button type="button" class="btn btn-outline-gray" id="btnCloseCaDetailBtn">Tutup</button>
+      </div>
     </div>
   </div>
 
@@ -5958,6 +6069,104 @@
           </button>
         </div>
       </form>
+    </div>
+  </div>
+
+  <!-- ==================== MODAL: DETAIL INFORMASI FINDING ==================== -->
+  <div class="modal-backdrop hidden" id="modalFindingDetail">
+    <div class="modal-dialog glass-panel" style="max-width: 680px;">
+      <div class="modal-header">
+        <div class="modal-title-group">
+          <div class="modal-icon-badge bg-red-gradient">
+            <i class="fa-solid fa-magnifying-glass-chart"></i>
+          </div>
+          <div>
+            <h3 class="modal-title" id="findingDetailModalTitle">Detail Catatan Finding</h3>
+            <p class="modal-subtitle">Rincian ketidaksesuaian audit QA, tingkat deviasi, action plan &amp; komitmen</p>
+          </div>
+        </div>
+        <button class="modal-close-btn" id="btnCloseFindingDetailModal" aria-label="Tutup Modal">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <div class="modal-body">
+        <!-- Top header card with Finding ID, Deviation Level, Status -->
+        <div class="detail-header-card glass-subpanel" style="padding: 16px; border-radius: 8px; margin-bottom: 16px; background: rgba(20, 24, 34, 0.75); border: 1px solid var(--border-color);">
+          <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
+            <div>
+              <div style="display:flex; align-items:center; gap:8px;">
+                <span class="text-red font-mono" id="findingDetailId" style="font-size:1.25rem; font-weight:800;">-</span>
+                <span id="findingDetailTypeBadge" class="badge badge-gray" style="font-size:0.75rem;">-</span>
+                <span id="findingDetailCategoryBadge" class="badge badge-gray" style="font-size:0.75rem;"><i class="fa-solid fa-tag text-silver" style="margin-right:4px;"></i>-</span>
+              </div>
+              <div style="font-size:0.8rem; color:var(--gray-300); margin-top:4px;">
+                <i class="fa-regular fa-calendar text-red" style="margin-right:4px;"></i>Tanggal: <strong id="findingDetailDate" class="text-white">-</strong>
+              </div>
+            </div>
+            <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+              <span id="findingDetailDevBadge" class="badge badge-yellow" style="font-size:0.8rem; padding:4px 10px;">-</span>
+              <span id="findingDetailStatusBadge" class="badge badge-yellow" style="font-size:0.8rem; padding:4px 10px;">-</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Petugas CSO & Layanan -->
+        <div class="glass-subpanel" style="padding:12px 14px; border-radius:6px; margin-bottom:12px; background:rgba(15,20,30,0.6); display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+          <div style="display:flex; align-items:center; gap:12px;">
+            <div id="findingDetailUserAvatar" class="user-avatar-circle" style="width:40px; height:40px; border-radius:50%; background:var(--primary); color:#fff; display:flex; align-items:center; justify-content:center; font-size:15px; font-weight:700;">
+              U
+            </div>
+            <div>
+              <div style="font-size:0.72rem; color:var(--gray-400); text-transform:uppercase;">Petugas CSO</div>
+              <strong id="findingDetailUserName" style="color:#ffffff; font-size:0.95rem;">-</strong>
+              <span id="findingDetailUserUsername" class="font-mono text-muted" style="font-size:0.75rem; margin-left:6px;">@username</span>
+            </div>
+          </div>
+          <div>
+            <div style="font-size:0.72rem; color:var(--gray-400); text-transform:uppercase; text-align:right;">Layanan CSO</div>
+            <span id="findingDetailDept" class="badge badge-gray" style="font-size:0.78rem;"><i class="fa-solid fa-headset text-red" style="margin-right:4px;"></i>CSO Layanan</span>
+          </div>
+        </div>
+
+        <!-- Rincian Kasus / Deskripsi Temuan -->
+        <div class="glass-subpanel" style="padding:14px; border-radius:6px; margin-bottom:12px; background:rgba(15,20,30,0.6); border-left:3px solid var(--accent-red);">
+          <span style="font-size:0.75rem; font-weight:700; color:var(--gray-300); text-transform:uppercase; display:flex; align-items:center; gap:6px; margin-bottom:6px;">
+            <i class="fa-solid fa-triangle-exclamation text-red"></i> Rincian Ketidaksesuaian / Kasus:
+          </span>
+          <div id="findingDetailDesc" style="color:#ffffff; font-size:0.88rem; line-height:1.55; white-space:pre-wrap;">-</div>
+        </div>
+
+        <!-- Action Plan -->
+        <div class="glass-subpanel" style="padding:14px; border-radius:6px; margin-bottom:12px; background:rgba(15,20,30,0.6); border-left:3px solid #eab308;">
+          <span style="font-size:0.75rem; font-weight:700; color:var(--gray-300); text-transform:uppercase; display:flex; align-items:center; gap:6px; margin-bottom:6px;">
+            <i class="fa-solid fa-lightbulb text-yellow"></i> Action Plan Perbaikan:
+          </span>
+          <div id="findingDetailActionPlan" style="color:#ffffff; font-size:0.88rem; line-height:1.55; white-space:pre-wrap;">-</div>
+        </div>
+
+        <!-- Komitmen Petugas CSO -->
+        <div class="glass-subpanel" style="padding:14px; border-radius:6px; margin-bottom:12px; background:rgba(15,20,30,0.6); border-left:3px solid #10b981;">
+          <span style="font-size:0.75rem; font-weight:700; color:var(--gray-300); text-transform:uppercase; display:flex; align-items:center; gap:6px; margin-bottom:6px;">
+            <i class="fa-solid fa-handshake text-green"></i> Komitmen Petugas CSO:
+          </span>
+          <div id="findingDetailCommitment" style="color:#ffffff; font-size:0.88rem; line-height:1.55; white-space:pre-wrap;">-</div>
+        </div>
+
+        <!-- Audit Metadata -->
+        <div style="font-size:0.75rem; color:var(--gray-400); padding:4px 2px;">
+          <i class="fa-solid fa-clock-rotate-left text-silver" style="margin-right:4px;"></i>Didaftarkan: <span id="findingDetailCreatedAt" class="text-white">-</span>
+        </div>
+      </div>
+
+      <div class="modal-footer" style="display:flex; justify-content:space-between; align-items:center;">
+        <div>
+          <button type="button" class="btn btn-outline-cyan btn-sm hidden" id="findingDetailBtnEdit">
+            <i class="fa-solid fa-pen-to-square"></i> <span>Edit Temuan Ini</span>
+          </button>
+        </div>
+        <button type="button" class="btn btn-outline-gray" id="btnCloseFindingDetailBtn">Tutup</button>
+      </div>
     </div>
   </div>
 
