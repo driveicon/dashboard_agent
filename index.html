@@ -555,7 +555,7 @@
       <!-- MAIN PAGE CONTAINERS (TAB-BASED SPA) -->
       <main class="page-content" id="mainContent">
 
-        <!-- ==================== PAGE 1: OVERVIEW (RINGKASAN PEROLEHAN CA, TIKET, ART) ==================== -->
+        <!-- ==================== PAGE 1: OVERVIEW (RINGKASAN PEROLEHAN CA, TIKET, ART, AHT) ==================== -->
         <section class="page-section active" id="pageOverview">
           
           <!-- Page Title Bar -->
@@ -563,7 +563,7 @@
             <div>
               <div class="badge-title-group">
                 <h2 class="page-title" id="overviewPageTitle">Ringkasan Perolehan Kinerja User</h2>
-                <span class="badge badge-red-subtle" id="overviewPageBadge"><i class="fa-solid fa-chart-pie"></i> Semua (CA, Tiket, ART)</span>
+                <span class="badge badge-red-subtle" id="overviewPageBadge"><i class="fa-solid fa-chart-pie"></i> Semua (CA, Tiket, ART, AHT)</span>
               </div>
               <p class="page-desc hidden" id="overviewPageDesc" style="display: none;"></p>
             </div>
@@ -594,7 +594,7 @@
           <div class="table-toolbar glass-panel" style="flex-wrap: wrap; gap: 14px; align-items: center; justify-content: space-between;">
             <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap; flex: 1; min-width: 280px;">
               
-              <!-- Dropdown Filter: Beralih ke Ringkasan CA, Tiket, ART -->
+              <!-- Dropdown Filter: Beralih ke Ringkasan CA, Tiket, ART, AHT -->
               <div class="overview-filter-group" style="display: inline-flex; align-items: center; gap: 8px;">
                 <label for="filterOverviewCategory" style="font-size: 0.82rem; font-weight: 700; color: var(--gray-300); display: flex; align-items: center; gap: 6px; white-space: nowrap;">
                   <i class="fa-solid fa-layer-group text-red"></i> Tampilan:
@@ -604,6 +604,7 @@
                   <option value="CA">CA</option>
                   <option value="TIKET">Tiket</option>
                   <option value="ART">ART</option>
+                  <option value="AHT">AHT</option>
                 </select>
               </div>
 
@@ -2212,8 +2213,7 @@
           <div class="page-title-bar">
             <div>
               <div class="badge-title-group">
-                <h2 class="page-title">Finding &amp; Rekapitulasi Audit QA</h2>
-                <span class="badge badge-red-subtle"><i class="fa-solid fa-triangle-exclamation"></i> QA Findings</span>
+                <h2 class="page-title">Finding</h2>
               </div>
               <p class="page-desc hidden">Rekapitulasi catatan temuan deviasi SOP, ketidaksesuaian data operasional, dan action plan perbaikan mutu pelayanan.</p>
             </div>
@@ -2372,6 +2372,7 @@
                 <option value="ALL">Semua Jenis</option>
                 <option value="Feedback Positif">Feedback Positif</option>
                 <option value="Feedback Negatif">Feedback Negatif</option>
+                <option value="-">Tanpa Jenis / Kosong</option>
               </select>
               <select id="filterFindingLevel" class="filter-select">
                 <option value="ALL">Semua Tingkat Deviasi</option>
@@ -5845,7 +5846,7 @@
             <i class="fa-solid fa-triangle-exclamation"></i>
           </div>
           <div>
-            <h3 class="modal-title" id="modalFindingTitle">Catat Temuan Audit QA (Finding)</h3>
+            <h3 class="modal-title" id="modalFindingTitle">Tambah Catatan</h3>
             <p class="modal-subtitle hidden">Pencatatan deviasi SOP pelayanan dan rekomendasi perbaikan kualitas</p>
           </div>
         </div>
@@ -5887,19 +5888,25 @@
 
           <div class="form-row">
             <div class="form-group flex-1">
-              <label for="formFindingType" class="form-label">Jenis <span class="required">*</span></label>
-              <select id="formFindingType" class="form-control" required>
+              <label for="formFindingType" class="form-label">Jenis</label>
+              <select id="formFindingType" class="form-control">
+                <option value="" selected>-- Pilih Jenis (Opsional) --</option>
                 <option value="Feedback Positif">Feedback Positif</option>
-                <option value="Feedback Negatif" selected>Feedback Negatif</option>
+                <option value="Feedback Negatif">Feedback Negatif</option>
               </select>
             </div>
 
             <div class="form-group flex-1">
               <label for="formFindingCategoryVal" class="form-label">Kategori Temuan <span class="required">*</span></label>
               <select id="formFindingCategoryVal" class="form-control" required>
-                <option value="Informasi">Informasi</option>
-                <option value="Keluhan">Keluhan</option>
-                <option value="Gangguan">Gangguan</option>
+                <option value="Quality" selected>Quality</option>
+                <option value="PND">PND</option>
+                <option value="Triwulan PND">Triwulan PND</option>
+                <option value="Activity AUX">Activity AUX</option>
+                <option value="Activity Late Login">Activity Late Login</option>
+                <option value="Activity FART">Activity FART</option>
+                <option value="Activity">Activity</option>
+                <option value="Attitude">Attitude</option>
               </select>
             </div>
 

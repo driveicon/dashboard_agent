@@ -815,9 +815,12 @@ class AppState {
       if (level === 'Minor') level = 'Reminder 1';
       else if (level === 'Mayor') level = 'Korektif 1';
       else if (level === 'Fatal') level = 'SP 1';
+      let category = item.category;
+      if (category === 'Atitude') category = 'Attitude';
       return {
         ...item,
-        findingType: item.findingType || 'Feedback Negatif',
+        category: category || 'Quality',
+        findingType: (item.findingType !== undefined && item.findingType !== null && item.findingType !== '') ? item.findingType : '-',
         deviationLevel: level || 'Reminder 1',
         commitment: item.commitment || '-'
       };
@@ -3955,7 +3958,7 @@ function navigateToPage(pageId, save = true) {
     tiket: 'Manajemen & Pelacakan Tiket',
     aht: 'Average Handling Time (AHT)',
     art: 'Average Response Time (ART)',
-    finding: 'Rekapitulasi Temuan Audit QA (Finding)',
+    finding: 'Finding',
     'data-management': 'Kelola Data Barang',
     timer: 'Pusat Timer & Stopwatch',
     'typing-test': 'Typing Test (Speed Racer 60s)',
@@ -4018,9 +4021,9 @@ function navigateToPage(pageId, save = true) {
 // 7. OVERVIEW PAGE: REKAPITULASI KINERJA USER (CA, TIKET, ART)
 // ==========================================
 
-let overviewActiveCategory = 'ALL'; // 'ALL' | 'CA' | 'TIKET' | 'ART'
+let overviewActiveCategory = 'ALL'; // 'ALL' | 'CA' | 'TIKET' | 'ART' | 'AHT'
 let overviewSortOrder = 'DESC'; // 'DESC' (Besar ke Kecil) | 'ASC' (Kecil ke Besar)
-let overviewSortMetric = 'AUTO'; // 'AUTO' | 'ca' | 'tiket' | 'art' | 'all'
+let overviewSortMetric = 'AUTO'; // 'AUTO' | 'ca' | 'tiket' | 'art' | 'aht' | 'all'
 let overviewSearchQuery = '';
 
 // Backward compatibility alias variables
@@ -4119,13 +4122,14 @@ function calculateOverviewCombinedData() {
   const allCaLogs = filterByMonth(state.getCaLogs ? state.getCaLogs() : []);
   const allTikets = filterByMonth(state.getTikets ? state.getTikets() : []);
   const allArtLogs = filterByMonth(state.getArtLogs ? state.getArtLogs() : []);
+  const allAhtLogs = filterByMonth(state.getAhtLogs ? state.getAhtLogs() : []);
 
   const list = users.map(u => {
     const fullName = u.fullName || u.username;
     const userId = u.id;
 
     // --- 1. CA METRICS (Strict 2 Decimals) ---
-    const caLogs = allCaLogs.filter(l => (l.userFullName && l.userFullName === fullName) || (l.userId && l.userId === userId));
+    const caLogs = allCaLogs.filter(l => (l.userFullName && l.userFullName === fullName) || (u.username && l.username === u.username) || (l.userId && l.userId === userId));
     const caCount = caLogs.length;
     let caAvg = 0;
     let caMin = 0;
@@ -4139,7 +4143,7 @@ function calculateOverviewCombinedData() {
     const caColor = getCaDynamicColor(caAvg, caCount > 0);
 
     // --- 2. TIKET METRICS ---
-    const tiketLogs = allTikets.filter(l => (l.userFullName && l.userFullName === fullName) || (l.userId && l.userId === userId));
+    const tiketLogs = allTikets.filter(l => (l.userFullName && l.userFullName === fullName) || (u.username && l.username === u.username) || (l.userId && l.userId === userId));
     const tiketDays = tiketLogs.length;
     let tiketCount = 0;
     if (tiketDays > 0) {
@@ -4151,7 +4155,7 @@ function calculateOverviewCombinedData() {
     const tiketColor = getTiketDynamicColor(tiketCount, tiketDays > 0);
 
     // --- 3. ART METRICS ---
-    const artLogs = allArtLogs.filter(l => (l.userFullName && l.userFullName === fullName) || (l.userId && l.userId === userId));
+    const artLogs = allArtLogs.filter(l => (l.userFullName && l.userFullName === fullName) || (u.username && l.username === u.username) || (l.userId && l.userId === userId));
     const artDays = artLogs.length;
     let totalInteractions = 0;
     let avgArtSec = 0;
@@ -4170,15 +4174,38 @@ function calculateOverviewCombinedData() {
     }
     const artColor = getArtDynamicColor(avgArtSec, artDays > 0);
 
+    // --- 4. AHT METRICS (Average Handling Time) ---
+    const ahtLogs = allAhtLogs.filter(l => (l.userFullName && l.userFullName === fullName) || (u.username && l.username === u.username) || (l.userId && l.userId === userId));
+    const ahtDays = ahtLogs.length;
+    let ahtTotalInteractions = 0;
+    let ahtTotalDurationSec = 0;
+    let avgAhtSec = 0;
+    let ahtComplianceDays = 0;
+    if (ahtDays > 0) {
+      ahtTotalInteractions = ahtLogs.reduce((acc, l) => acc + (Number(l.interactionCount) || 1), 0);
+      ahtTotalDurationSec = ahtLogs.reduce((acc, l) => acc + (Number(l.totalDurationSeconds) || ((Number(l.actualSeconds || l.ahtSeconds) || 0) * (Number(l.interactionCount) || 1))), 0);
+      avgAhtSec = ahtTotalInteractions > 0 ? Math.round(ahtTotalDurationSec / ahtTotalInteractions) : 0;
+      ahtComplianceDays = ahtLogs.filter(l => (Number(l.actualSeconds || l.ahtSeconds) || 0) <= (Number(l.targetSeconds) || 300)).length;
+    }
+    const ahtColor = (typeof getAhtDynamicColor === 'function') ? getAhtDynamicColor(avgAhtSec, ahtDays > 0) : { color: '#94a3b8', grade: 'Belum Ada Data', barColor: '#64748b', badgeClass: 'badge-gray' };
+
     // Composite score for Overall Rank:
-    // CA (0-100) weight 40%, Tiket (% Capaian) weight 35%, ART (Response Speed) weight 25%
+    // CA (0-100) weight 30%, Tiket (% Capaian) weight 30%, ART weight 20%, AHT weight 20%
     let artScoreNorm = 50;
     if (artDays > 0) {
       if (avgArtSec <= 15) artScoreNorm = 100;
       else if (avgArtSec <= 30) artScoreNorm = 100 - ((avgArtSec - 15) / 15) * 25;
       else artScoreNorm = Math.max(0, 75 - ((avgArtSec - 30) / 15) * 40);
     }
-    const compositeScore = parseFloat(((caAvg * 0.40) + (Math.min(100, tiketPct) * 0.35) + (artScoreNorm * 0.25)).toFixed(2));
+
+    let ahtScoreNorm = 50;
+    if (ahtDays > 0) {
+      if (avgAhtSec <= 240) ahtScoreNorm = 100;
+      else if (avgAhtSec <= 300) ahtScoreNorm = 100 - ((avgAhtSec - 240) / 60) * 25;
+      else ahtScoreNorm = Math.max(0, 75 - ((avgAhtSec - 300) / 60) * 40);
+    }
+
+    const compositeScore = parseFloat(((caAvg * 0.30) + (Math.min(100, tiketPct) * 0.30) + (artScoreNorm * 0.20) + (ahtScoreNorm * 0.20)).toFixed(2));
 
     return {
       user: u,
@@ -4211,12 +4238,21 @@ function calculateOverviewCombinedData() {
       complianceDays,
       artColor,
       hasArt: artDays > 0,
+      // AHT
+      ahtDays,
+      ahtTotalInteractions,
+      ahtTotalDurationSec,
+      avgAhtSec,
+      ahtComplianceDays,
+      ahtColor,
+      hasAht: ahtDays > 0,
       // Composite
       compositeScore,
       // Ranks per category
       caRank: 0,
       tiketRank: 0,
       artRank: 0,
+      ahtRank: 0,
       allRank: 0
     };
   });
@@ -4252,7 +4288,17 @@ function calculateOverviewCombinedData() {
     item.artRank = item.hasArt ? idx + 1 : '-';
   });
 
-  // 4. Overall / All Rank: Highest compositeScore is Rank 1
+  // 4. AHT Rank: Lowest avgAhtSec (fastest handling) is Rank 1
+  const ahtSorted = [...list].sort((a, b) => {
+    if (!a.hasAht && b.hasAht) return 1;
+    if (a.hasAht && !b.hasAht) return -1;
+    return a.avgAhtSec - b.avgAhtSec;
+  });
+  ahtSorted.forEach((item, idx) => {
+    item.ahtRank = item.hasAht ? idx + 1 : '-';
+  });
+
+  // 5. Overall / All Rank: Highest compositeScore is Rank 1
   const allSorted = [...list].sort((a, b) => b.compositeScore - a.compositeScore);
   allSorted.forEach((item, idx) => {
     item.allRank = idx + 1;
@@ -4448,6 +4494,70 @@ function getArtDynamicColor(artSec, hasData = true) {
   return { color, bgColor, borderColor, barColor, grade, status, badgeClass, badgeIcon, hue };
 }
 
+/**
+ * Dynamic color interpolation for AHT (Average Handling Time in seconds):
+ * Lower is better! Target SLA <= 300s (5 Menit), Super efficient <= 240s (4 Menit)
+ * Hijau (Bagus, <= 240s) -> Hijau Muda (Sesuai SLA, 241 - 300s) -> Kuning (Over SLA, 301 - 360s) -> Merah (> 360s)
+ */
+function getAhtDynamicColor(ahtSec, hasData = true) {
+  if (!hasData || isNaN(ahtSec) || ahtSec <= 0) {
+    return {
+      color: '#94a3b8',
+      bgColor: 'rgba(148, 163, 184, 0.12)',
+      borderColor: 'rgba(148, 163, 184, 0.3)',
+      barColor: 'linear-gradient(90deg, #64748b, #94a3b8)',
+      grade: 'Belum Ada Data',
+      status: 'Belum Ada Input',
+      badgeClass: 'badge-gray',
+      badgeIcon: 'fa-regular fa-clock',
+      hue: 0
+    };
+  }
+
+  let hue = 0;
+  if (ahtSec <= 240) {
+    const factor = Math.min(1, Math.max(0, (240 - ahtSec) / 120));
+    hue = Math.round(110 + factor * 30); // 110 -> 140
+  } else if (ahtSec <= 300) {
+    const factor = (300 - ahtSec) / 60.0;
+    hue = Math.round(55 + factor * 55); // 55 -> 110
+  } else if (ahtSec <= 360) {
+    const factor = Math.max(0, (360 - ahtSec) / 60.0);
+    hue = Math.round(factor * 55); // 0 -> 55
+  } else {
+    hue = 0;
+  }
+
+  const color = `hsl(${hue}, 88%, 50%)`;
+  const bgColor = `hsla(${hue}, 88%, 50%, 0.15)`;
+  const borderColor = `hsla(${hue}, 88%, 50%, 0.4)`;
+  const barColor = `linear-gradient(90deg, hsla(${Math.max(0, hue - 20)}, 92%, 48%, 0.85), hsl(${hue}, 88%, 50%))`;
+
+  let grade = 'Over SLA';
+  let status = `Over SLA (+${Math.round(ahtSec - 300)}s)`;
+  let badgeClass = 'badge-yellow';
+  let badgeIcon = 'fa-solid fa-triangle-exclamation text-yellow';
+
+  if (ahtSec <= 240) {
+    grade = 'Sangat Efisien';
+    status = 'Efisien (≤240s)';
+    badgeClass = 'badge-green';
+    badgeIcon = 'fa-solid fa-bolt text-green';
+  } else if (ahtSec <= 300) {
+    grade = 'Sesuai SLA';
+    status = 'Sesuai SLA (≤300s)';
+    badgeClass = 'badge-green';
+    badgeIcon = 'fa-solid fa-circle-check text-green';
+  } else if (ahtSec > 360) {
+    grade = 'Over SLA Kritis';
+    status = `Over SLA (+${Math.round(ahtSec - 300)}s)`;
+    badgeClass = 'badge-red';
+    badgeIcon = 'fa-solid fa-triangle-exclamation text-red';
+  }
+
+  return { color, bgColor, borderColor, barColor, grade, status, badgeClass, badgeIcon, hue };
+}
+
 function updateOverviewLegendAndTitles() {
   const elCategory = (UI && UI.filterOverviewCategory) || document.getElementById('filterOverviewCategory');
   if (elCategory && elCategory.value) {
@@ -4480,10 +4590,13 @@ function updateOverviewLegendAndTitles() {
   } else if (overviewActiveCategory === 'ART') {
     if (titleEl) titleEl.textContent = 'Ringkasan Average Response Time (ART) User';
     if (badgeEl) badgeEl.innerHTML = '<i class="fa-solid fa-bolt"></i> ART (SLA ≤30s)';
+  } else if (overviewActiveCategory === 'AHT') {
+    if (titleEl) titleEl.textContent = 'Ringkasan Average Handling Time (AHT) User';
+    if (badgeEl) badgeEl.innerHTML = '<i class="fa-solid fa-headset"></i> AHT (SLA ≤300s)';
   } else {
     // ALL
     if (titleEl) titleEl.textContent = 'Ringkasan Perolehan Kinerja User';
-    if (badgeEl) badgeEl.innerHTML = '<i class="fa-solid fa-chart-pie"></i> Semua (CA, Tiket, ART)';
+    if (badgeEl) badgeEl.innerHTML = '<i class="fa-solid fa-chart-pie"></i> Semua (CA, Tiket, ART, AHT)';
   }
 }
 
@@ -4501,13 +4614,15 @@ window.promptDeleteAllOverviewMonth = function() {
   const caLogs = state.getCaLogs ? state.getCaLogs() : [];
   const tiketLogs = state.getTikets ? state.getTikets() : [];
   const artLogs = state.getArtLogs ? state.getArtLogs() : [];
+  const ahtLogs = state.getAhtLogs ? state.getAhtLogs() : [];
   const paLogs = state.getPaLogs ? state.getPaLogs() : [];
 
   const countCa = caLogs.filter(l => (l.date || '').startsWith(selMonth)).length;
   const countTiket = tiketLogs.filter(l => (l.date || '').startsWith(selMonth)).length;
   const countArt = artLogs.filter(l => (l.date || '').startsWith(selMonth)).length;
+  const countAht = ahtLogs.filter(l => (l.date || '').startsWith(selMonth)).length;
   const countPa = paLogs.filter(l => (l.date || '').startsWith(selMonth)).length;
-  const totalCount = countCa + countTiket + countArt + countPa;
+  const totalCount = countCa + countTiket + countArt + countAht + countPa;
 
   if (totalCount === 0) {
     showToast('Tidak Ada Data', `Tidak ada data kinerja pada periode ${monthLabel} untuk dihapus.`, 'warning');
@@ -4521,11 +4636,12 @@ window.promptDeleteAllOverviewMonth = function() {
     countCa,
     countTiket,
     countArt,
+    countAht,
     countPa,
     totalCount
   };
   UI.confirmDeleteTitle.textContent = `Hapus Semua Data Kinerja Bulan ${monthLabel}?`;
-  UI.confirmDeleteMessage.innerHTML = `Peringatan: Seluruh data evaluasi CA (${countCa}), perolehan tiket (${countTiket}), response time ART (${countArt}), dan catatan PA (${countPa}) pada periode <strong>${monthLabel}</strong> akan dihapus secara permanen (total <strong>${totalCount}</strong> catatan). Tindakan ini tidak dapat dibatalkan.`;
+  UI.confirmDeleteMessage.innerHTML = `Peringatan: Seluruh data evaluasi CA (${countCa}), perolehan tiket (${countTiket}), response time ART (${countArt}), handling time AHT (${countAht}), dan catatan PA (${countPa}) pada periode <strong>${monthLabel}</strong> akan dihapus secara permanen (total <strong>${totalCount}</strong> catatan). Tindakan ini tidak dapat dibatalkan.`;
   UI.modalConfirmDelete.classList.remove('hidden');
 };
 
@@ -4558,11 +4674,12 @@ function renderOverviewPage() {
     if (overviewActiveCategory === 'CA') sortKey = 'ca';
     else if (overviewActiveCategory === 'TIKET') sortKey = 'tiket';
     else if (overviewActiveCategory === 'ART') sortKey = 'art';
+    else if (overviewActiveCategory === 'AHT') sortKey = 'aht';
     else sortKey = 'all';
   }
 
   // Sort filtered data:
-  // When active category is CA, TIKET, or ART, sorting aligns with that category's ranking!
+  // When active category is CA, TIKET, ART, or AHT, sorting aligns with that category's ranking!
   filtered.sort((a, b) => {
     let valA = 0;
     let valB = 0;
@@ -4584,6 +4701,11 @@ function renderOverviewPage() {
       valB = b.avgArtSec;
       hasA = a.hasArt;
       hasB = b.hasArt;
+    } else if (sortKey === 'aht') {
+      valA = a.avgAhtSec;
+      valB = b.avgAhtSec;
+      hasA = a.hasAht;
+      hasB = b.hasAht;
     } else {
       // 'all'
       valA = a.compositeScore;
@@ -4684,32 +4806,57 @@ function renderOverviewPage() {
           <th style="text-align: center;">Status SLA</th>
         </tr>
       `;
+    } else if (overviewActiveCategory === 'AHT') {
+      thead.innerHTML = `
+        <tr>
+          <th style="width: 80px; text-align: center;">Peringkat (AHT)</th>
+          <th>Petugas CSO</th>
+          <th>Layanan CSO</th>
+          <th style="text-align: center;">Hari Input</th>
+          <th style="text-align: center;">Total Interaksi</th>
+          <th style="text-align: center;">Total Durasi</th>
+          <th class="overview-sortable-th" data-metric="aht" style="width: 230px;" title="Klik untuk mengurutkan Waktu AHT (Besar ke Kecil / Kecil ke Besar)">
+            <div style="display:flex; align-items:center; justify-content:space-between; gap:6px;">
+              <span><i class="fa-solid fa-headset text-yellow" style="margin-right:5px;"></i>Rata-rata AHT</span>
+              ${sortIcon('aht')}
+            </div>
+          </th>
+          <th style="text-align: center;">Target SLA</th>
+          <th style="text-align: center;">Status SLA</th>
+        </tr>
+      `;
     } else {
-      // ALL: Kombinasi CA, Tiket, dan ART
+      // ALL: Kombinasi CA, Tiket, ART, dan AHT
       thead.innerHTML = `
         <tr>
           <th style="width: 75px; text-align: center;">Peringkat</th>
           <th>Petugas CSO</th>
           <th>Layanan CSO</th>
-          <th class="overview-sortable-th" data-metric="ca" style="width: 210px;" title="Klik untuk mengurutkan Skor CA">
+          <th class="overview-sortable-th" data-metric="ca" style="width: 195px;" title="Klik untuk mengurutkan Skor CA">
             <div style="display:flex; align-items:center; justify-content:space-between; gap:6px;">
               <span><i class="fa-solid fa-star text-yellow" style="margin-right:4px;"></i>Skor CA [2 Desimal]</span>
               ${sortIcon('ca')}
             </div>
           </th>
-          <th class="overview-sortable-th" data-metric="tiket" style="width: 210px;" title="Klik untuk mengurutkan Realisasi Tiket">
+          <th class="overview-sortable-th" data-metric="tiket" style="width: 195px;" title="Klik untuk mengurutkan Realisasi Tiket">
             <div style="display:flex; align-items:center; justify-content:space-between; gap:6px;">
               <span><i class="fa-solid fa-ticket text-red" style="margin-right:4px;"></i>Tiket (Tgt 1.320)</span>
               ${sortIcon('tiket')}
             </div>
           </th>
-          <th class="overview-sortable-th" data-metric="art" style="width: 200px;" title="Klik untuk mengurutkan Kecepatan ART">
+          <th class="overview-sortable-th" data-metric="art" style="width: 185px;" title="Klik untuk mengurutkan Kecepatan ART">
             <div style="display:flex; align-items:center; justify-content:space-between; gap:6px;">
               <span><i class="fa-solid fa-bolt text-yellow" style="margin-right:4px;"></i>ART (SLA ≤30s)</span>
               ${sortIcon('art')}
             </div>
           </th>
-          <th style="text-align: center; width: 130px;">Kinerja</th>
+          <th class="overview-sortable-th" data-metric="aht" style="width: 185px;" title="Klik untuk mengurutkan Waktu AHT">
+            <div style="display:flex; align-items:center; justify-content:space-between; gap:6px;">
+              <span><i class="fa-solid fa-headset text-yellow" style="margin-right:4px;"></i>AHT (SLA ≤300s)</span>
+              ${sortIcon('aht')}
+            </div>
+          </th>
+          <th style="text-align: center; width: 120px;">Kinerja</th>
         </tr>
       `;
     }
@@ -4750,6 +4897,7 @@ function renderOverviewPage() {
     if (overviewActiveCategory === 'CA') currentRank = item.caRank;
     else if (overviewActiveCategory === 'TIKET') currentRank = item.tiketRank;
     else if (overviewActiveCategory === 'ART') currentRank = item.artRank;
+    else if (overviewActiveCategory === 'AHT') currentRank = item.ahtRank;
 
     let rankBadgeHtml = `<span class="ca-rank-badge ca-rank-other">${currentRank}</span>`;
     if (currentRank === 1) {
@@ -4912,11 +5060,50 @@ function renderOverviewPage() {
           </span>
         </td>
       `;
+    } else if (overviewActiveCategory === 'AHT') {
+      const colorData = item.ahtColor;
+      const ahtFormatted = item.hasAht ? `${Math.round(item.avgAhtSec)} Detik` : '-';
+      const durFormatted = item.hasAht ? `${item.ahtTotalDurationSec.toLocaleString('id-ID')} Detik` : '-';
+
+      tr.innerHTML = `
+        <td style="text-align: center; font-weight: 700;">${rankBadgeHtml}</td>
+        <td>${agentProfileHtml}</td>
+        <td>${deptHtml}</td>
+        <td style="text-align: center;">
+          <span class="badge badge-gray font-mono">${item.ahtDays} Hari</span>
+        </td>
+        <td style="text-align: center;">
+          <span class="font-mono text-white">${item.ahtTotalInteractions.toLocaleString('id-ID')}</span>
+        </td>
+        <td style="text-align: center;">
+          <span class="font-mono text-muted">${durFormatted}</span>
+        </td>
+        <td>
+          <div style="display: flex; align-items: baseline; justify-content: space-between;">
+            <span style="color: ${colorData.color}; font-size: 1.05rem; font-weight: 800; font-family: monospace; text-shadow: 0 0 10px ${colorData.color}44;">
+              ${ahtFormatted}
+            </span>
+            <small style="color: var(--gray-400); font-size: 0.7rem;">SLA: ≤300s</small>
+          </div>
+          <div class="ca-mini-bar-track">
+            <div class="ca-mini-bar-fill" style="width: ${Math.min(100, Math.max(0, (item.avgAhtSec / 360) * 100))}%; background: ${colorData.barColor}; box-shadow: 0 0 8px ${colorData.color}66;"></div>
+          </div>
+        </td>
+        <td style="text-align: center;">
+          <span class="font-mono text-muted">≤ 300s</span>
+        </td>
+        <td style="text-align: center;">
+          <span class="badge ${colorData.badgeClass}" style="font-size: 0.75rem;">
+            <i class="${colorData.badgeIcon}" style="margin-right: 4px;"></i>${colorData.grade}
+          </span>
+        </td>
+      `;
     } else {
-      // ALL VIEW: Menampilkan ketiga metrik CA, Tiket, dan ART secara harmonis
+      // ALL VIEW: Menampilkan metrik CA, Tiket, ART, dan AHT secara harmonis
       const caColor = item.caColor;
       const tiketColor = item.tiketColor;
       const artColor = item.artColor;
+      const ahtColor = item.ahtColor;
 
       tr.innerHTML = `
         <td style="text-align: center; font-weight: 700;">${rankBadgeHtml}</td>
@@ -4961,8 +5148,21 @@ function renderOverviewPage() {
             <div class="ca-mini-bar-fill" style="width: ${Math.min(100, Math.max(0, (item.avgArtSec / 45) * 100))}%; background: ${artColor.barColor};"></div>
           </div>
         </td>
+        <td>
+          <div style="display: flex; align-items: baseline; justify-content: space-between;">
+            <span style="color: ${ahtColor.color}; font-weight: 800; font-family: monospace; font-size: 0.98rem; text-shadow: 0 0 8px ${ahtColor.color}44;">
+              ${item.hasAht ? Math.round(item.avgAhtSec) + 's' : '-'}
+            </span>
+            <span class="badge ${ahtColor.badgeClass}" style="font-size: 0.65rem; padding: 1px 6px;">
+              ${ahtColor.grade}
+            </span>
+          </div>
+          <div class="ca-mini-bar-track" style="margin-top: 4px;">
+            <div class="ca-mini-bar-fill" style="width: ${Math.min(100, Math.max(0, (item.avgAhtSec / 360) * 100))}%; background: ${ahtColor.barColor};"></div>
+          </div>
+        </td>
         <td style="text-align: center;">
-          ${(item.caAvg >= 85 && item.tiketCount >= 1056 && item.avgArtSec <= 30)
+          ${(item.caAvg >= 85 && item.tiketCount >= 1056 && item.avgArtSec <= 30 && (!item.hasAht || item.avgAhtSec <= 300))
             ? '<span class="badge badge-green"><i class="fa-solid fa-star"></i> Prima</span>'
             : (item.caAvg >= 80 || item.tiketCount >= 900)
               ? '<span class="badge badge-yellow"><i class="fa-solid fa-circle-check"></i> Baik</span>'
@@ -5874,11 +6074,17 @@ function executePendingDelete() {
     if (state.selectedArtIds) state.selectedArtIds.clear();
     if (typeof autoSyncArtAction === 'function') autoSyncArtAction('delete_month', { month });
 
+    const oldAht = state.getAhtLogs ? state.getAhtLogs() : [];
+    const countAhtBefore = oldAht.filter(l => (l.date || '').startsWith(month)).length;
+    state.saveAhtLogs(oldAht.filter(l => !(l.date || '').startsWith(month)));
+    if (state.selectedAhtIds) state.selectedAhtIds.clear();
+    if (typeof autoSyncAhtAction === 'function') autoSyncAhtAction('delete_month', { month });
+
     const oldPa = state.getPaLogs ? state.getPaLogs() : [];
     const countPaBefore = oldPa.filter(l => (l.date || '').startsWith(month)).length;
     state.savePaLogs(oldPa.filter(l => !(l.date || '').startsWith(month)));
 
-    const totalBefore = countCaBefore + countTiketBefore + countArtBefore + countPaBefore;
+    const totalBefore = countCaBefore + countTiketBefore + countArtBefore + countAhtBefore + countPaBefore;
     state.addLog('DELETE_OVERVIEW_MONTH', 'Hapus Data Ringkasan Bulanan', `${state.currentUser.fullName} (${state.currentUser.role.toUpperCase()}) menghapus seluruh data kinerja periode ${name} (${totalBefore} catatan).`);
     showToast('Data Bulan Ini Dihapus', `Seluruh <strong>${totalBefore} data kinerja</strong> periode <strong>${name}</strong> berhasil dihapus.`, 'danger');
     if (typeof updateDynamicMonthDropdowns === 'function') updateDynamicMonthDropdowns();
@@ -8769,7 +8975,13 @@ function renderUserPersonalPaCard(currentUser) {
       }
       pFindingsList.innerHTML = '';
       myFindings.forEach(item => {
-        let typeBadge = item.findingType === 'Feedback Positif' ? 'badge-green' : 'badge-yellow';
+        let typeBadge = 'badge-yellow';
+        if (item.findingType === 'Feedback Positif') {
+          typeBadge = 'badge-green';
+        } else if (!item.findingType || item.findingType === '-') {
+          typeBadge = 'badge-gray';
+        }
+
         let devBadge = 'badge-yellow';
         let borderColor = 'var(--yellow-status)';
         if ((item.deviationLevel || '').startsWith('Korektif')) {
@@ -8780,11 +8992,15 @@ function renderUserPersonalPaCard(currentUser) {
           borderColor = 'var(--red-primary)';
         } else if (item.findingType === 'Feedback Positif') {
           borderColor = 'var(--green-status)';
+        } else if (!item.findingType || item.findingType === '-') {
+          borderColor = 'var(--gray-600)';
         }
 
         let statBadge = 'badge-yellow';
         if (item.status === 'Dalam Coaching') statBadge = 'badge-blue';
         else if (item.status === 'Closed') statBadge = 'badge-green';
+
+        const displayType = (item.findingType && item.findingType !== '-') ? item.findingType : '-';
 
         const card = document.createElement('div');
         card.className = 'glass-subpanel finding-note-card';
@@ -8794,7 +9010,7 @@ function renderUserPersonalPaCard(currentUser) {
             <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
               <span class="text-red font-mono" style="font-weight: 700; font-size: 0.8rem;">${item.id}</span>
               <span class="badge ${devBadge}" style="font-size: 0.7rem;">${item.deviationLevel}</span>
-              <span class="badge ${typeBadge}" style="font-size: 0.7rem;">${item.findingType || 'Feedback Negatif'}</span>
+              <span class="badge ${typeBadge}" style="font-size: 0.7rem;">${displayType}</span>
               <span class="badge badge-gray" style="font-size: 0.7rem;"><i class="fa-solid fa-tag text-silver" style="margin-right: 3px;"></i>${item.category}</span>
             </div>
             <div style="display: flex; align-items: center; gap: 6px;">
@@ -8956,7 +9172,13 @@ function openAdminUserDetailModal(userIdOrName) {
       `;
     } else {
       userFindings.forEach(item => {
-        let typeBadge = item.findingType === 'Feedback Positif' ? 'badge-green' : 'badge-yellow';
+        let typeBadge = 'badge-yellow';
+        if (item.findingType === 'Feedback Positif') {
+          typeBadge = 'badge-green';
+        } else if (!item.findingType || item.findingType === '-') {
+          typeBadge = 'badge-gray';
+        }
+
         let devBadge = 'badge-yellow';
         let borderColor = 'var(--yellow-status)';
         if ((item.deviationLevel || '').startsWith('Korektif')) {
@@ -8967,11 +9189,15 @@ function openAdminUserDetailModal(userIdOrName) {
           borderColor = 'var(--red-primary)';
         } else if (item.findingType === 'Feedback Positif') {
           borderColor = 'var(--green-status)';
+        } else if (!item.findingType || item.findingType === '-') {
+          borderColor = 'var(--gray-600)';
         }
 
         let statBadge = 'badge-yellow';
         if (item.status === 'Dalam Coaching') statBadge = 'badge-blue';
         else if (item.status === 'Closed') statBadge = 'badge-green';
+
+        const displayType = (item.findingType && item.findingType !== '-') ? item.findingType : '-';
 
         const card = document.createElement('div');
         card.className = 'glass-subpanel finding-note-card';
@@ -8981,7 +9207,7 @@ function openAdminUserDetailModal(userIdOrName) {
             <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
               <span class="text-red font-mono" style="font-weight: 700; font-size: 0.8rem;">${item.id}</span>
               <span class="badge ${devBadge}" style="font-size: 0.7rem;">${item.deviationLevel}</span>
-              <span class="badge ${typeBadge}" style="font-size: 0.7rem;">${item.findingType || 'Feedback Negatif'}</span>
+              <span class="badge ${typeBadge}" style="font-size: 0.7rem;">${displayType}</span>
               <span class="badge badge-gray" style="font-size: 0.7rem;"><i class="fa-solid fa-tag text-silver" style="margin-right: 3px;"></i>${item.category}</span>
             </div>
             <div style="display: flex; align-items: center; gap: 6px;">
@@ -15991,8 +16217,8 @@ function doGet(e) {
         date: r[1] instanceof Date ? Utilities.formatDate(r[1], Session.getScriptTimeZone(), 'yyyy-MM-dd') : String(r[1] || ''),
         userFullName: String(r[2] || ''),
         department: String(r[3] || 'CSO INBOUND'),
-        findingType: String(r[4] || 'Feedback Negatif'),
-        category: String(r[5] || 'Informasi'),
+        findingType: String(r[4] || '-'),
+        category: String(r[5] || 'Quality'),
         deviationLevel: String(r[6] || 'Reminder 1'),
         desc: String(r[7] || ''),
         commitment: String(r[8] || '-'),
@@ -16034,8 +16260,8 @@ function doPost(e) {
           f.date || '',
           f.userFullName || '',
           f.department || 'CSO INBOUND',
-          f.findingType || 'Feedback Negatif',
-          f.category || 'Informasi',
+          f.findingType || '-',
+          f.category || 'Quality',
           f.deviationLevel || 'Reminder 1',
           f.desc || '',
           f.commitment || '-',
@@ -16066,8 +16292,8 @@ function doPost(e) {
         f.date || '',
         f.userFullName || '',
         f.department || 'CSO INBOUND',
-        f.findingType || 'Feedback Negatif',
-        f.category || 'Informasi',
+        f.findingType || '-',
+        f.category || 'Quality',
         f.deviationLevel || 'Reminder 1',
         f.desc || '',
         f.commitment || '-',
@@ -16458,8 +16684,8 @@ async function pullFindingFromGoogleSheets() {
                 date: cols[1] || '',
                 userFullName: cols[2] || '',
                 department: cols[3] || 'CSO INBOUND',
-                findingType: cols[4] || 'Feedback Negatif',
-                category: cols[5] || 'Informasi',
+                findingType: cols[4] || '-',
+                category: cols[5] || 'Quality',
                 deviationLevel: cols[6] || 'Reminder 1',
                 desc: cols[7] || '',
                 commitment: cols[8] || '-',
@@ -16641,7 +16867,10 @@ function renderFindingPage() {
       if (!match) return false;
     }
     if (filterService !== 'ALL' && item.department !== filterService) return false;
-    if (filterType !== 'ALL' && item.findingType !== filterType) return false;
+    if (filterType !== 'ALL') {
+      const fType = (item.findingType && item.findingType !== '-') ? item.findingType : '-';
+      if (fType !== filterType) return false;
+    }
     if (filterLevel !== 'ALL' && item.deviationLevel !== filterLevel) return false;
     if (filterStatus !== 'ALL' && item.status !== filterStatus) return false;
     return true;
@@ -16699,6 +16928,8 @@ function renderFindingPage() {
     let typeBadge = 'badge-yellow';
     if (item.findingType === 'Feedback Positif') {
       typeBadge = 'badge-green';
+    } else if (!item.findingType || item.findingType === '-') {
+      typeBadge = 'badge-gray';
     }
 
     let devBadge = 'badge-yellow';
@@ -16753,7 +16984,7 @@ function renderFindingPage() {
       <td><span style="font-size:0.8rem; color:var(--gray-300);">${item.date || '-'}</span></td>
       <td><span style="font-weight:600; color:#fff;">${item.userFullName}</span></td>
       <td><span class="badge badge-gray" style="font-size:0.75rem;"><i class="fa-solid fa-headset text-red" style="margin-right:4px;"></i>${item.department}</span></td>
-      <td><span class="badge ${typeBadge}" style="font-size:0.75rem;">${item.findingType || 'Feedback Negatif'}</span></td>
+      <td><span class="badge ${typeBadge}" style="font-size:0.75rem;">${(item.findingType && item.findingType !== '-') ? item.findingType : '-'}</span></td>
       <td><span style="font-size:0.8rem; color:var(--gray-200);">${item.category}</span></td>
       <td><span class="badge ${devBadge}" style="font-size:0.75rem;">${item.deviationLevel}</span></td>
       <td>
@@ -16778,8 +17009,8 @@ function openAddFindingModal() {
   const u = state.currentUser;
   if (!u) return;
 
-  if (UI.modalFindingTitle) UI.modalFindingTitle.textContent = 'Catat Temuan Audit QA (Finding)';
-  if (UI.btnSubmitFindingText) UI.btnSubmitFindingText.textContent = 'Simpan Temuan';
+  if (UI.modalFindingTitle) UI.modalFindingTitle.textContent = 'Tambah Catatan';
+  if (UI.btnSubmitFindingText) UI.btnSubmitFindingText.textContent = 'Simpan Catatan';
   if (UI.formFindingId) UI.formFindingId.value = '';
 
   if (UI.formFinding) UI.formFinding.reset();
@@ -16808,8 +17039,8 @@ function openAddFindingModal() {
 
   const todayStr = new Date().toISOString().slice(0, 10);
   if (UI.formFindingDate) UI.formFindingDate.value = todayStr;
-  if (UI.formFindingType) UI.formFindingType.value = 'Feedback Negatif';
-  if (UI.formFindingCategoryVal) UI.formFindingCategoryVal.value = 'Informasi';
+  if (UI.formFindingType) UI.formFindingType.value = '';
+  if (UI.formFindingCategoryVal) UI.formFindingCategoryVal.value = 'Quality';
   if (UI.formFindingLevelVal) UI.formFindingLevelVal.value = 'Reminder 1';
   if (UI.formFindingDesc) UI.formFindingDesc.value = '';
   if (UI.formFindingCommitment) UI.formFindingCommitment.value = '';
@@ -16831,8 +17062,8 @@ window.openEditFindingModal = function(id) {
     return;
   }
 
-  if (UI.modalFindingTitle) UI.modalFindingTitle.textContent = 'Edit Temuan Audit QA (Finding)';
-  if (UI.btnSubmitFindingText) UI.btnSubmitFindingText.textContent = 'Perbarui Temuan';
+  if (UI.modalFindingTitle) UI.modalFindingTitle.textContent = 'Edit Catatan';
+  if (UI.btnSubmitFindingText) UI.btnSubmitFindingText.textContent = 'Perbarui Catatan';
   if (UI.formFindingId) UI.formFindingId.value = item.id;
 
   // Populate dropdown Petugas CSO dari seluruh data di Manajemen Team (kecuali admin)
@@ -16859,8 +17090,18 @@ window.openEditFindingModal = function(id) {
 
   if (UI.formFindingDept) UI.formFindingDept.value = item.department || 'CSO INBOUND';
   if (UI.formFindingDate) UI.formFindingDate.value = item.date || new Date().toISOString().slice(0, 10);
-  if (UI.formFindingType) UI.formFindingType.value = item.findingType || 'Feedback Negatif';
-  if (UI.formFindingCategoryVal) UI.formFindingCategoryVal.value = item.category || 'Informasi';
+  if (UI.formFindingType) UI.formFindingType.value = (item.findingType && item.findingType !== '-') ? item.findingType : '';
+  if (UI.formFindingCategoryVal) {
+    const catVal = item.category || 'Quality';
+    const hasCat = Array.from(UI.formFindingCategoryVal.options).some(opt => opt.value === catVal);
+    if (!hasCat && catVal) {
+      const opt = document.createElement('option');
+      opt.value = catVal;
+      opt.textContent = `${catVal} (Lama)`;
+      UI.formFindingCategoryVal.appendChild(opt);
+    }
+    UI.formFindingCategoryVal.value = catVal;
+  }
   if (UI.formFindingLevelVal) UI.formFindingLevelVal.value = item.deviationLevel || 'Reminder 1';
   if (UI.formFindingDesc) UI.formFindingDesc.value = item.desc || '';
   if (UI.formFindingCommitment) UI.formFindingCommitment.value = (item.commitment && item.commitment !== '-') ? item.commitment : '';
@@ -16887,8 +17128,8 @@ function handleSaveFinding(e) {
   const userFullName = (UI.formFindingUser ? UI.formFindingUser.value.trim() : '') || u.fullName;
   const department = (UI.formFindingDept ? UI.formFindingDept.value : 'CSO INBOUND');
   const date = (UI.formFindingDate && UI.formFindingDate.value) ? UI.formFindingDate.value : new Date().toISOString().slice(0, 10);
-  const findingType = (UI.formFindingType ? UI.formFindingType.value : 'Feedback Negatif');
-  const category = (UI.formFindingCategoryVal ? UI.formFindingCategoryVal.value : 'Informasi');
+  const findingType = (UI.formFindingType ? UI.formFindingType.value.trim() : '') || '-';
+  const category = (UI.formFindingCategoryVal ? UI.formFindingCategoryVal.value : 'Quality');
   const deviationLevel = (UI.formFindingLevelVal ? UI.formFindingLevelVal.value : 'Reminder 1');
   const desc = (UI.formFindingDesc ? UI.formFindingDesc.value.trim() : '');
   const commitment = (UI.formFindingCommitment ? UI.formFindingCommitment.value.trim() : '') || '-';
@@ -16934,8 +17175,8 @@ function handleSaveFinding(e) {
     };
     state.saveFindings(findings);
     autoSyncFindingAction('save', { finding: findings[targetIdx] });
-    state.addLog('UPDATE_FINDING', 'Perbarui Temuan QA', `${u.fullName} (${u.role.toUpperCase()}) memperbarui temuan audit QA [${editId}] untuk ${userFullName} (${deviationLevel}).`);
-    showToast('Temuan QA Diperbarui', `Temuan <strong>${editId}</strong> berhasil diperbarui.`, 'success');
+    state.addLog('UPDATE_FINDING', 'Perbarui Catatan QA', `${u.fullName} (${u.role.toUpperCase()}) memperbarui catatan temuan audit QA [${editId}] untuk ${userFullName} (${deviationLevel}).`);
+    showToast('Catatan QA Diperbarui', `Catatan temuan <strong>${editId}</strong> berhasil diperbarui.`, 'success');
   } else {
     // Mode Tambah: catat temuan baru
     const todayStr = date;
@@ -16962,8 +17203,8 @@ function handleSaveFinding(e) {
     findings.unshift(newEntry);
     state.saveFindings(findings);
     autoSyncFindingAction('save', { finding: newEntry });
-    state.addLog('CREATE_FINDING', 'Temuan QA Baru', `${u.fullName} mencatat temuan audit QA [${newId}] untuk ${userFullName} (${deviationLevel}).`);
-    showToast('Temuan QA Dicatat', `Temuan <strong>${newId}</strong> berhasil didaftarkan.`, 'success');
+    state.addLog('CREATE_FINDING', 'Catatan QA Baru', `${u.fullName} mencatat temuan audit QA [${newId}] untuk ${userFullName} (${deviationLevel}).`);
+    showToast('Catatan QA Ditambahkan', `Catatan temuan <strong>${newId}</strong> berhasil didaftarkan.`, 'success');
   }
 
   if (typeof updateDynamicMonthDropdowns === 'function') {
@@ -17106,8 +17347,8 @@ function exportFindingExcel() {
       f.date,
       f.userFullName,
       f.department,
-      f.findingType || 'Feedback Negatif',
-      f.category || 'Informasi',
+      f.findingType || '-',
+      f.category || 'Quality',
       f.deviationLevel || 'Reminder 1',
       f.desc || '-',
       f.commitment || '-',
@@ -17141,7 +17382,7 @@ function exportFindingExcel() {
     const ag = agentMap[name];
     ag.total++;
     if (f.findingType === 'Feedback Positif') ag.positif++;
-    else ag.negatif++;
+    else if (f.findingType === 'Feedback Negatif') ag.negatif++;
 
     const level = f.deviationLevel || '';
     if (level.startsWith('Reminder')) ag.reminder++;
