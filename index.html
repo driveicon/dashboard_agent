@@ -590,6 +590,18 @@
             </div>
           </div>
 
+          <!-- Sub-Navigation Menu: Tabel vs Grafik -->
+          <div class="overview-subnav-tabs">
+            <button type="button" class="btn btn-overview-tab active" id="btnOverviewTabTable" title="Tampilkan Rekapitulasi Tabel">
+              <i class="fa-solid fa-table-list"></i>
+              <span>Tabel Ringkasan</span>
+            </button>
+            <button type="button" class="btn btn-overview-tab" id="btnOverviewTabChart" title="Tampilkan Diagram &amp; Grafik Pencapaian">
+              <i class="fa-solid fa-chart-column text-yellow"></i>
+              <span>Grafik Pencapaian</span>
+            </button>
+          </div>
+
           <!-- Color Indicator Legend & Filter Toolbar -->
           <div class="table-toolbar glass-panel" style="flex-wrap: wrap; gap: 14px; align-items: center; justify-content: space-between;">
             <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap; flex: 1; min-width: 280px;">
@@ -618,9 +630,22 @@
               </div>
             </div>
 
-            <!-- Sort Controls (Besar ke Kecil / Kecil ke Besar) & Legend -->
+            <!-- Sort Controls (Besar ke Kecil / Kecil ke Besar), View Mode & Legend -->
             <div class="toolbar-filters" style="display:flex; align-items:center; gap: 12px; flex-wrap: wrap;">
               
+              <!-- View Switcher (Tabel / Grafik) in Toolbar -->
+              <div class="ca-sort-segmented-group" style="display: inline-flex; background: rgba(15, 20, 30, 0.7); padding: 3px; border-radius: var(--radius-sm); border: 1px solid var(--border-color);">
+                <button type="button" class="btn btn-sm btn-sort-direction active" id="btnOverviewToggleTable" title="Tampilkan Tabel Data">
+                  <i class="fa-solid fa-table-list" style="margin-right: 5px;"></i>
+                  <span>Tabel</span>
+                </button>
+                <button type="button" class="btn btn-sm btn-sort-direction" id="btnOverviewToggleChart" title="Tampilkan Grafik &amp; Diagram Pencapaian">
+                  <i class="fa-solid fa-chart-column text-yellow" style="margin-right: 5px;"></i>
+                  <span>Grafik</span>
+                </button>
+              </div>
+
+              <!-- Sort Direction Controls -->
               <div class="ca-sort-segmented-group" style="display: inline-flex; background: rgba(15, 20, 30, 0.7); padding: 3px; border-radius: var(--radius-sm); border: 1px solid var(--border-color);">
                 <button type="button" class="btn btn-sm btn-sort-direction active" id="btnSortCaDesc" data-dir="DESC" title="Urutkan dari Nilai Terbesar ke Terkecil">
                   <i class="fa-solid fa-arrow-down-wide-short text-green" style="margin-right: 5px;"></i>
@@ -639,7 +664,7 @@
           </div>
 
           <!-- Overview Multi-Metric Table Container -->
-          <div class="table-container glass-panel">
+          <div class="table-container glass-panel" id="overviewTableContainer">
             <div class="table-responsive">
               <table class="custom-table" id="tableOverviewCa">
                 <thead id="theadOverview">
@@ -659,6 +684,166 @@
               <h4>Tidak Ada Data Pengguna</h4>
               <p class="text-muted" id="emptyOverviewDesc">Tidak ada perolehan performa yang cocok dengan kriteria pencarian.</p>
             </div>
+          </div>
+
+          <!-- ==================== OVERVIEW CHARTS CONTAINER (DIAGRAM PENCAPAIAN USER) ==================== -->
+          <div id="overviewChartsContainer" class="hidden" style="margin-top: 1rem;">
+            
+            <!-- Quick KPI Metric Summary Cards -->
+            <div class="metrics-grid" style="grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; margin-bottom: 20px;">
+              <!-- KPI 1: CA Avg -->
+              <div class="metric-card glass-panel" style="padding: 16px; border-radius: 12px; border: 1px solid var(--border-color);">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                  <span class="text-muted font-bold" style="font-size:0.78rem; text-transform:uppercase; letter-spacing:0.5px;">Rata-rata Skor CA Tim</span>
+                  <span class="badge badge-yellow" style="font-size:0.7rem;"><i class="fa-solid fa-star"></i> CA</span>
+                </div>
+                <div style="margin-top: 8px;">
+                  <strong id="overviewKpiCaAvg" class="font-mono text-yellow" style="font-size:1.6rem;">-</strong>
+                </div>
+                <small id="overviewKpiCaSub" class="text-muted" style="font-size:0.75rem; display:block; margin-top:4px;">Passing Grade SOP: ≥85.00</small>
+              </div>
+
+              <!-- KPI 2: Tiket Total -->
+              <div class="metric-card glass-panel" style="padding: 16px; border-radius: 12px; border: 1px solid var(--border-color);">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                  <span class="text-muted font-bold" style="font-size:0.78rem; text-transform:uppercase; letter-spacing:0.5px;">Total Realisasi Tiket</span>
+                  <span class="badge badge-red" style="font-size:0.7rem;"><i class="fa-solid fa-ticket"></i> Tiket</span>
+                </div>
+                <div style="margin-top: 8px;">
+                  <strong id="overviewKpiTiketTotal" class="font-mono text-red" style="font-size:1.6rem;">-</strong>
+                </div>
+                <small id="overviewKpiTiketSub" class="text-muted" style="font-size:0.75rem; display:block; margin-top:4px;">Target Individu: 1.320 Tiket/Bln</small>
+              </div>
+
+              <!-- KPI 3: ART Avg -->
+              <div class="metric-card glass-panel" style="padding: 16px; border-radius: 12px; border: 1px solid var(--border-color);">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                  <span class="text-muted font-bold" style="font-size:0.78rem; text-transform:uppercase; letter-spacing:0.5px;">Rata-rata Respon (ART)</span>
+                  <span class="badge badge-cyan" style="font-size:0.7rem;"><i class="fa-solid fa-bolt"></i> ART</span>
+                </div>
+                <div style="margin-top: 8px;">
+                  <strong id="overviewKpiArtAvg" class="font-mono text-cyan" style="font-size:1.6rem;">-</strong>
+                </div>
+                <small id="overviewKpiArtSub" class="text-muted" style="font-size:0.75rem; display:block; margin-top:4px;">Batas Maksimal SLA: &lt;30s</small>
+              </div>
+
+              <!-- KPI 4: AHT Avg -->
+              <div class="metric-card glass-panel" style="padding: 16px; border-radius: 12px; border: 1px solid var(--border-color);">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                  <span class="text-muted font-bold" style="font-size:0.78rem; text-transform:uppercase; letter-spacing:0.5px;">Rata-rata Durasi (AHT)</span>
+                  <span class="badge badge-green" style="font-size:0.7rem;"><i class="fa-solid fa-headset"></i> AHT</span>
+                </div>
+                <div style="margin-top: 8px;">
+                  <strong id="overviewKpiAhtAvg" class="font-mono text-green" style="font-size:1.6rem;">-</strong>
+                </div>
+                <small id="overviewKpiAhtSub" class="text-muted" style="font-size:0.75rem; display:block; margin-top:4px;">Rata-rata Durasi Penanganan</small>
+              </div>
+            </div>
+
+            <!-- Charts Grid Container -->
+            <div id="overviewChartsGrid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(460px, 1fr)); gap: 20px;">
+              
+              <!-- Chart 1: CA Score -->
+              <div class="glass-panel overview-chart-card" id="overviewChartCardCa" style="padding: 20px; border-radius: 12px; display: flex; flex-direction: column;">
+                <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom: 14px;">
+                  <div>
+                    <h4 style="font-size:1rem; font-weight:700; color:#fff; display:flex; align-items:center; gap:8px;">
+                      <i class="fa-solid fa-star text-yellow"></i>
+                      <span>Pencapaian Skor CA Petugas CSO</span>
+                    </h4>
+                    <p class="text-muted" style="font-size:0.75rem; margin-top:3px;">Evaluasi kualitas mutu interaksi (Passing Grade: 85.00)</p>
+                  </div>
+                  <span class="badge badge-yellow font-mono" id="overviewBadgeChartCa" style="font-size:0.72rem;">Skor CA</span>
+                </div>
+                <div style="position: relative; height: 280px; width: 100%;">
+                  <canvas id="canvasOverviewCa"></canvas>
+                </div>
+              </div>
+
+              <!-- Chart 2: Tiket Count -->
+              <div class="glass-panel overview-chart-card" id="overviewChartCardTiket" style="padding: 20px; border-radius: 12px; display: flex; flex-direction: column;">
+                <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom: 14px;">
+                  <div>
+                    <h4 style="font-size:1rem; font-weight:700; color:#fff; display:flex; align-items:center; gap:8px;">
+                      <i class="fa-solid fa-ticket text-red"></i>
+                      <span>Pencapaian Realisasi Tiket Petugas CSO</span>
+                    </h4>
+                    <p class="text-muted" style="font-size:0.75rem; margin-top:3px;">Volume penyelesaian tiket per agent (Target Bulanan: 1.320)</p>
+                  </div>
+                  <span class="badge badge-red font-mono" id="overviewBadgeChartTiket" style="font-size:0.72rem;">Tiket</span>
+                </div>
+                <div style="position: relative; height: 280px; width: 100%;">
+                  <canvas id="canvasOverviewTiket"></canvas>
+                </div>
+              </div>
+
+              <!-- Chart 3: ART (Average Response Time) -->
+              <div class="glass-panel overview-chart-card" id="overviewChartCardArt" style="padding: 20px; border-radius: 12px; display: flex; flex-direction: column;">
+                <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom: 14px;">
+                  <div>
+                    <h4 style="font-size:1rem; font-weight:700; color:#fff; display:flex; align-items:center; gap:8px;">
+                      <i class="fa-solid fa-bolt text-cyan"></i>
+                      <span>Average Response Time (ART) Petugas CSO</span>
+                    </h4>
+                    <p class="text-muted" style="font-size:0.75rem; margin-top:3px;">Kecepatan respon sapaan chat (Target SLA: &lt; 30 Detik)</p>
+                  </div>
+                  <span class="badge badge-cyan font-mono" id="overviewBadgeChartArt" style="font-size:0.72rem;">ART (Detik)</span>
+                </div>
+                <div style="position: relative; height: 280px; width: 100%;">
+                  <canvas id="canvasOverviewArt"></canvas>
+                </div>
+              </div>
+
+              <!-- Chart 4: AHT (Average Handling Time) -->
+              <div class="glass-panel overview-chart-card" id="overviewChartCardAht" style="padding: 20px; border-radius: 12px; display: flex; flex-direction: column;">
+                <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom: 14px;">
+                  <div>
+                    <h4 style="font-size:1rem; font-weight:700; color:#fff; display:flex; align-items:center; gap:8px;">
+                      <i class="fa-solid fa-headset text-green"></i>
+                      <span>Average Handling Time (AHT) Petugas CSO</span>
+                    </h4>
+                    <p class="text-muted" style="font-size:0.75rem; margin-top:3px;">Durasi pelayanan sesi penanganan</p>
+                  </div>
+                  <span class="badge badge-green font-mono" id="overviewBadgeChartAht" style="font-size:0.72rem;">AHT (Detik)</span>
+                </div>
+                <div style="position: relative; height: 280px; width: 100%;">
+                  <canvas id="canvasOverviewAht"></canvas>
+                </div>
+              </div>
+
+              <!-- Chart 5: Matriks Komparasi Multi-Metrik -->
+              <div class="glass-panel overview-chart-card" id="overviewChartCardMulti" style="padding: 20px; border-radius: 12px; grid-column: 1 / -1; display: flex; flex-direction: column;">
+                <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom: 14px; flex-wrap: wrap; gap: 8px;">
+                  <div>
+                    <h4 style="font-size:1rem; font-weight:700; color:#fff; display:flex; align-items:center; gap:8px;">
+                      <i class="fa-solid fa-chart-line text-red"></i>
+                      <span>Komparasi Pencapaian Performa Seluruh Petugas CSO (%)</span>
+                    </h4>
+                    <p class="text-muted" style="font-size:0.75rem; margin-top:3px;">Perbandingan persentase capaian target 4 metrik kinerja secara proporsional (0 - 100%)</p>
+                  </div>
+                  <div style="display:flex; gap:6px; flex-wrap:wrap;">
+                    <span class="badge badge-yellow" style="font-size:0.7rem;"><i class="fa-solid fa-star"></i> CA</span>
+                    <span class="badge badge-red" style="font-size:0.7rem;"><i class="fa-solid fa-ticket"></i> Tiket</span>
+                    <span class="badge badge-cyan" style="font-size:0.7rem;"><i class="fa-solid fa-bolt"></i> ART</span>
+                    <span class="badge badge-green" style="font-size:0.7rem;"><i class="fa-solid fa-headset"></i> AHT</span>
+                  </div>
+                </div>
+                <div style="position: relative; height: 320px; width: 100%;">
+                  <canvas id="canvasOverviewMulti"></canvas>
+                </div>
+              </div>
+
+            </div>
+
+            <!-- Empty State for Charts -->
+            <div class="table-empty-state hidden" id="emptyOverviewCharts" style="padding: 40px 20px;">
+              <div class="empty-icon-wrap">
+                <i class="fa-solid fa-chart-pie text-muted"></i>
+              </div>
+              <h4>Tidak Ada Data Grafik</h4>
+              <p class="text-muted">Tidak ada perolehan performa yang dapat ditampilkan dalam grafik untuk filter terpilih.</p>
+            </div>
+
           </div>
 
         </section>
@@ -1109,7 +1294,6 @@
                   <tr>
                     <th>Petugas CSO</th>
                     <th>Layanan CSO</th>
-                    <th style="text-align: center;">Hari Dinilai</th>
                     <th style="text-align: right;">Rata-rata Skor</th>
                     <th>Predikat Mutu</th>
                     <th style="text-align: center;">Skor Min / Max</th>
@@ -1162,9 +1346,9 @@
               </select>
               <select id="filterCaGrade" class="filter-select">
                 <option value="ALL">Semua Kategori Mutu</option>
-                <option value="Sangat Baik">Sangat Baik (&ge; 95,00)</option>
-                <option value="Baik">Baik (85,00 - 94,99)</option>
-                <option value="Perlu Coaching">Perlu Coaching (&lt; 85,00)</option>
+                <option value="Sangat Baik">Sangat Baik</option>
+                <option value="Baik">Baik</option>
+                <option value="Perlu Coaching">Perlu Coaching</option>
               </select>
               <select id="filterCaScoreSort" class="filter-select">
                 <option value="DATE_DESC" selected>Urutan: Tanggal Terbaru</option>
@@ -1207,7 +1391,7 @@
                     <th style="width: 44px; text-align: center;" id="caThSelectAll">
                       <input type="checkbox" id="caSelectAllCheckbox" class="ca-table-checkbox" title="Tandai Semua Data">
                     </th>
-                    <th>Tanggal Evaluasi</th>
+                    <th>Tanggal Transaksi</th>
                     <th>Petugas CSO</th>
                     <th style="text-align: center;">No. Tiket / ID</th>
                     <th>Layanan</th>
@@ -1441,7 +1625,6 @@
                   <tr>
                     <th>Petugas CSO</th>
                     <th>Layanan CSO</th>
-                    <th style="text-align: center;">Hari Input</th>
                     <th style="text-align: center;">Target Bulanan</th>
                     <th style="text-align: right;">Total Perolehan</th>
                     <th style="text-align: center; min-width: 170px;">Kekurangan Target Tiket</th>
@@ -1566,7 +1749,7 @@
                 <h2 class="page-title">Average Handling Time (AHT)</h2>
                 <span class="badge badge-gray" id="ahtIntervalBadge"><i class="fa-regular fa-calendar-check text-red"></i> Input Per Hari</span>
               </div>
-              <p class="page-desc hidden">Informasi Average Handling Time (AHT) user dalam 1 bulan dengan pencatatan interval input per hari terhadap batas standar SLA 300 detik. Admin dapat menambah, mengubah, dan menghapus handling time user. Pengguna biasa hanya dapat melihat.</p>
+              <p class="page-desc hidden">Informasi Average Handling Time (AHT) user dalam 1 bulan dengan pencatatan interval input per hari. Admin dapat menambah, mengubah, dan menghapus handling time user. Pengguna biasa hanya dapat melihat.</p>
             </div>
             <div class="page-title-actions">
               <div class="month-filter-group" style="display:inline-flex; align-items:center; gap:8px;">
@@ -1609,7 +1792,7 @@
               <i class="fa-solid fa-stopwatch text-red"></i>
               <div>
                 <strong id="ahtBannerRoleLabel">Otoritas Akses Handling Time (AHT)</strong>
-                <p id="ahtBannerRoleDesc" class="hidden">Admin dapat menambah, mengedit, dan menghapus handling time harian seluruh user. Standar SLA &lt; 300 detik (05:00 menit). Pengguna biasa hanya dapat melihat.</p>
+                <p id="ahtBannerRoleDesc" class="hidden">Admin dapat menambah, mengedit, dan menghapus handling time harian seluruh user. Pengguna biasa hanya dapat melihat.</p>
               </div>
             </div>
             <div class="status-banner-right">
@@ -1719,7 +1902,7 @@
                   <i class="fa-solid fa-users-viewfinder text-red"></i>
                   <span>Rekapitulasi Average Handling Time Seluruh Agent Periode <span id="ahtMonthHeaderLabel" class="text-red">Oktober 2026</span></span>
                 </h3>
-                <p class="hidden" style="font-size: calc(0.8rem * var(--content-font-scale, 1)); color:var(--gray-400); margin-top:2px;">Monitoring performa durasi rata-rata penanganan interaksi seluruh agent dalam 1 bulan terhadap batas SLA 300 detik.</p>
+                <p class="hidden" style="font-size: calc(0.8rem * var(--content-font-scale, 1)); color:var(--gray-400); margin-top:2px;">Monitoring performa durasi rata-rata penanganan interaksi seluruh agent dalam 1 bulan.</p>
               </div>
               <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
                 <!-- Filter Nama User / Agent -->
@@ -1769,7 +1952,6 @@
                   <tr>
                     <th>Petugas CSO</th>
                     <th>Layanan CSO</th>
-                    <th style="text-align: center;">Hari Input</th>
                     <th style="text-align: right;">AHT Harian</th>
                     <th style="text-align: center;">Rata-rata AHT Bulanan</th>
                     <th style="text-align: center; width: 100px;" class="hidden">Aksi</th>
@@ -2093,7 +2275,6 @@
                   <tr>
                     <th>Petugas CSO</th>
                     <th>Layanan CSO</th>
-                    <th style="text-align: center;">Hari Input</th>
                     <th style="text-align: center;">Rata-rata ART Bulanan</th>
                     <th style="text-align: center;">Standar SLA</th>
                     <th style="text-align: center;">Deviasi Waktu</th>
@@ -4991,7 +5172,7 @@
           <div class="form-row">
             <div class="form-group flex-1">
               <label for="formCaDate" class="form-label">
-                Tanggal Evaluasi (Harian) <span class="required">*</span>
+                Tanggal Transaksi <span class="required">*</span>
               </label>
               <div class="input-with-icon">
                 <i class="fa-regular fa-calendar input-icon"></i>
@@ -5069,9 +5250,9 @@
             <div class="form-group flex-1">
               <label for="formCaGradeVal" class="form-label">Kategori Mutu</label>
               <select id="formCaGradeVal" class="form-control">
-                <option value="Sangat Baik">Sangat Baik (&ge; 95,00)</option>
-                <option value="Baik">Baik (85,00 - 94,99)</option>
-                <option value="Perlu Coaching">Perlu Coaching (&lt; 85,00)</option>
+                <option value="Sangat Baik">Sangat Baik</option>
+                <option value="Baik">Baik</option>
+                <option value="Perlu Coaching">Perlu Coaching</option>
               </select>
             </div>
           </div>
@@ -5729,7 +5910,7 @@
           </div>
           <div>
             <h3 class="modal-title" id="modalAhtTitle">Input Handling Time Harian (AHT)</h3>
-            <p class="modal-subtitle hidden" id="modalAhtSubtitle">Pencatatan durasi rata-rata penanganan interaksi user harian terhadap target SLA 300 detik</p>
+            <p class="modal-subtitle hidden" id="modalAhtSubtitle">Pencatatan durasi rata-rata penanganan interaksi user harian</p>
           </div>
         </div>
         <button class="modal-close-btn" id="btnCloseAhtModal" aria-label="Tutup Modal">
@@ -5744,8 +5925,8 @@
           <!-- Information Callout regarding SLA Standard -->
           <div class="form-info-callout hidden" style="background:rgba(230,46,68,0.08); border-left:3px solid var(--accent-red); padding:10px 14px; border-radius:6px; margin-bottom:16px; font-size: calc(0.8rem * var(--content-font-scale, 1)); color:var(--gray-300); display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
             <div>
-              <strong class="text-white"><i class="fa-solid fa-stopwatch text-red" style="margin-right:6px;"></i>Standar SLA AHT: &lt; 300 Detik (05:00 Menit)</strong>
-              <div style="font-size: calc(0.75rem * var(--content-font-scale, 1)); color:var(--gray-400); margin-top:2px;">Durasi penanganan &le; 300 detik dinyatakan Sesuai SLA, di atas 300 detik Over SLA.</div>
+              <strong class="text-white"><i class="fa-solid fa-stopwatch text-red" style="margin-right:6px;"></i>Durasi Penanganan (AHT)</strong>
+              <div style="font-size: calc(0.75rem * var(--content-font-scale, 1)); color:var(--gray-400); margin-top:2px;">Pencatatan rata-rata durasi penanganan interaksi customer harian.</div>
             </div>
             <span class="badge badge-red-subtle"><i class="fa-regular fa-calendar-check text-red"></i> Interval Input Per Hari</span>
           </div>
@@ -5807,7 +5988,7 @@
               <small class="form-hint" id="formAhtDurationPreview">Durasi: 220 detik</small>
               <small class="form-hint hidden">Jumlah panggilan/chat/tiket yang ditangani pada hari ini</small>
             </div>
-            <input type="hidden" id="formAhtTargetSecs" value="300">
+            <input type="hidden" id="formAhtTargetSecs" value="0">
           </div>
 
           <div class="form-group">

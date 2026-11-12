@@ -2780,6 +2780,14 @@ const UI = {
   theadOverview: document.getElementById('theadOverview'),
   tbodyOverviewCa: document.getElementById('tbodyOverviewCa'),
   emptyOverviewCa: document.getElementById('emptyOverviewCa'),
+  overviewTableContainer: document.getElementById('overviewTableContainer'),
+  overviewChartsContainer: document.getElementById('overviewChartsContainer'),
+  overviewChartsGrid: document.getElementById('overviewChartsGrid'),
+  emptyOverviewCharts: document.getElementById('emptyOverviewCharts'),
+  btnOverviewTabTable: document.getElementById('btnOverviewTabTable'),
+  btnOverviewTabChart: document.getElementById('btnOverviewTabChart'),
+  btnOverviewToggleTable: document.getElementById('btnOverviewToggleTable'),
+  btnOverviewToggleChart: document.getElementById('btnOverviewToggleChart'),
   overviewColorLegend: document.getElementById('overviewColorLegend'),
   overviewPageTitle: document.getElementById('overviewPageTitle'),
   overviewPageBadge: document.getElementById('overviewPageBadge'),
@@ -4070,6 +4078,7 @@ let overviewActiveCategory = 'ALL'; // 'ALL' | 'CA' | 'TIKET' | 'ART' | 'AHT'
 let overviewSortOrder = 'DESC'; // 'DESC' (Besar ke Kecil) | 'ASC' (Kecil ke Besar)
 let overviewSortMetric = 'AUTO'; // 'AUTO' | 'ca' | 'tiket' | 'art' | 'aht' | 'all'
 let overviewSearchQuery = '';
+let overviewViewMode = 'table'; // 'table' | 'chart'
 
 // Backward compatibility alias variables
 let overviewCaSortOrder = 'DESC';
@@ -4105,7 +4114,8 @@ function getOverviewUserPref() {
     month: '2026-09',
     sortOrder: 'DESC',
     sortMetric: 'AUTO',
-    searchQuery: ''
+    searchQuery: '',
+    viewMode: 'table'
   };
 }
 
@@ -4128,6 +4138,7 @@ function syncOverviewUserPreferences(force = false) {
     overviewSortMetric = pref.sortMetric || 'AUTO';
     overviewSearchQuery = pref.searchQuery || '';
     overviewCaSearchQuery = overviewSearchQuery;
+    overviewViewMode = pref.viewMode || 'table';
 
     const elCategory = (UI && UI.filterOverviewCategory) || document.getElementById('filterOverviewCategory');
     if (elCategory) {
@@ -4154,6 +4165,99 @@ function syncOverviewUserPreferences(force = false) {
   }
 }
 
+/**
+ * Helper to resolve raw user identifiers from Google Sheets (case-insensitive, trims, removes @)
+ * Matches any casing: all uppercase (BUDI), all lowercase (budi), mixed case (Budi),
+ * against registered users' username, fullName, or email.
+ */
+function resolveSpreadsheetUser(rawVal, defaultDept) {
+  const trimmed = String(rawVal || '').trim();
+  if (!trimmed) {
+    return { username: '', fullName: '', department: defaultDept || 'CSO INBOUND', userId: '' };
+  }
+  const clean = trimmed.replace(/^@+/, '').trim().toLowerCase();
+  const cleanNoSpace = clean.replace(/\s+/g, '');
+  const allUsers = (state.getUsers ? state.getUsers() : []) || [];
+
+  // 1. Direct match on username or fullName (case-insensitive)
+  let found = allUsers.find(u => {
+    const uName = (u.username || '').trim().replace(/^@+/, '').toLowerCase();
+    const fName = (u.fullName || '').trim().toLowerCase();
+    return uName === clean || fName === clean;
+  });
+
+  // 2. Match without whitespace differences
+  if (!found) {
+    found = allUsers.find(u => {
+      const uNameNoSpace = (u.username || '').trim().replace(/^@+/, '').replace(/\s+/g, '').toLowerCase();
+      const fNameNoSpace = (u.fullName || '').trim().replace(/\s+/g, '').toLowerCase();
+      return uNameNoSpace === cleanNoSpace || fNameNoSpace === cleanNoSpace;
+    });
+  }
+
+  // 3. Match by email prefix or full email
+  if (!found) {
+    found = allUsers.find(u => {
+      const uEmail = (u.email || '').trim().toLowerCase();
+      if (!uEmail) return false;
+      if (uEmail === clean) return true;
+      const emailPrefix = uEmail.split('@')[0];
+      return emailPrefix && (emailPrefix === clean || emailPrefix === cleanNoSpace);
+    });
+  }
+
+  if (found) {
+    const canonicalFullName = found.fullName || found.username || trimmed;
+    const canonicalUsername = found.username || clean;
+    return {
+      userId: found.id || '',
+      username: canonicalUsername,
+      fullName: canonicalFullName,
+      userFullName: canonicalFullName,
+      department: found.department || defaultDept || 'CSO INBOUND'
+    };
+  }
+
+  return {
+    userId: '',
+    username: trimmed.replace(/^@+/, ''),
+    fullName: trimmed,
+    userFullName: trimmed,
+    department: defaultDept || 'CSO INBOUND'
+  };
+}
+
+/**
+ * Robust case-insensitive check whether a log belongs to a user.
+ * Supports uppercase, lowercase, mixed case for both fullName and username.
+ */
+function isLogMatchUser(log, user) {
+  if (!log || !user) return false;
+  if (log.userId && user.id && String(log.userId) === String(user.id)) return true;
+
+  const uFullName = (user.fullName || '').trim().toLowerCase();
+  const uUsername = (user.username || '').trim().replace(/^@+/, '').toLowerCase();
+  const logFullName = (log.userFullName || '').trim().toLowerCase();
+  const logUsername = (log.username || '').trim().replace(/^@+/, '').toLowerCase();
+
+  if (uFullName && (logFullName === uFullName || logUsername === uFullName)) return true;
+  if (uUsername && (logUsername === uUsername || logFullName === uUsername)) return true;
+
+  // Also match without spaces
+  if (uFullName && logFullName && uFullName.replace(/\s+/g, '') === logFullName.replace(/\s+/g, '')) return true;
+  if (uUsername && logUsername && uUsername.replace(/\s+/g, '') === logUsername.replace(/\s+/g, '')) return true;
+
+  const uEmail = (user.email || '').trim().toLowerCase();
+  const uEmailPrefix = uEmail ? uEmail.split('@')[0] : '';
+  if (uEmail && (logUsername === uEmail || logFullName === uEmail)) return true;
+  if (uEmailPrefix && (logUsername === uEmailPrefix || logFullName === uEmailPrefix)) return true;
+
+  return false;
+}
+
+window.resolveSpreadsheetUser = resolveSpreadsheetUser;
+window.isLogMatchUser = isLogMatchUser;
+
 function calculateOverviewCombinedData() {
   const users = (state.getUsers ? state.getUsers() : []).filter(u => u && u.role !== 'admin');
   const elMonth = (UI && UI.filterOverviewMonth) || document.getElementById('filterOverviewMonth');
@@ -4174,7 +4278,7 @@ function calculateOverviewCombinedData() {
     const userId = u.id;
 
     // --- 1. CA METRICS (Strict 2 Decimals) ---
-    const caLogs = allCaLogs.filter(l => (l.userFullName && l.userFullName === fullName) || (u.username && l.username === u.username) || (l.userId && l.userId === userId));
+    const caLogs = allCaLogs.filter(l => isLogMatchUser(l, u));
     const caCount = caLogs.length;
     let caAvg = 0;
     let caMin = 0;
@@ -4188,7 +4292,7 @@ function calculateOverviewCombinedData() {
     const caColor = getCaDynamicColor(caAvg, caCount > 0);
 
     // --- 2. TIKET METRICS ---
-    const tiketLogs = allTikets.filter(l => (l.userFullName && l.userFullName === fullName) || (u.username && l.username === u.username) || (l.userId && l.userId === userId));
+    const tiketLogs = allTikets.filter(l => isLogMatchUser(l, u));
     const tiketDays = tiketLogs.length;
     let tiketCount = 0;
     if (tiketDays > 0) {
@@ -4200,7 +4304,7 @@ function calculateOverviewCombinedData() {
     const tiketColor = getTiketDynamicColor(tiketCount, tiketDays > 0);
 
     // --- 3. ART METRICS ---
-    const artLogs = allArtLogs.filter(l => (l.userFullName && l.userFullName === fullName) || (u.username && l.username === u.username) || (l.userId && l.userId === userId));
+    const artLogs = allArtLogs.filter(l => isLogMatchUser(l, u));
     const artDays = artLogs.length;
     let totalInteractions = 0;
     let avgArtSec = 0;
@@ -4220,7 +4324,7 @@ function calculateOverviewCombinedData() {
     const artColor = getArtDynamicColor(avgArtSec, artDays > 0);
 
     // --- 4. AHT METRICS (Average Handling Time) ---
-    const ahtLogs = allAhtLogs.filter(l => (l.userFullName && l.userFullName === fullName) || (u.username && l.username === u.username) || (l.userId && l.userId === userId));
+    const ahtLogs = allAhtLogs.filter(l => isLogMatchUser(l, u));
     const ahtDays = ahtLogs.length;
     let ahtTotalInteractions = 0;
     let ahtTotalDurationSec = 0;
@@ -4230,7 +4334,7 @@ function calculateOverviewCombinedData() {
       ahtTotalInteractions = ahtLogs.reduce((acc, l) => acc + (Number(l.interactionCount) || 1), 0);
       ahtTotalDurationSec = ahtLogs.reduce((acc, l) => acc + (Number(l.totalDurationSeconds) || ((Number(l.actualSeconds || l.ahtSeconds) || 0) * (Number(l.interactionCount) || 1))), 0);
       avgAhtSec = ahtTotalInteractions > 0 ? Math.round(ahtTotalDurationSec / ahtTotalInteractions) : 0;
-      ahtComplianceDays = ahtLogs.filter(l => (Number(l.actualSeconds || l.ahtSeconds) || 0) <= (Number(l.targetSeconds) || 300)).length;
+      ahtComplianceDays = ahtDays;
     }
     const ahtColor = (typeof getAhtDynamicColor === 'function') ? getAhtDynamicColor(avgAhtSec, ahtDays > 0) : { color: '#94a3b8', grade: 'Belum Ada Data', barColor: '#64748b', badgeClass: 'badge-gray' };
 
@@ -4246,8 +4350,7 @@ function calculateOverviewCombinedData() {
     let ahtScoreNorm = 50;
     if (ahtDays > 0) {
       if (avgAhtSec <= 240) ahtScoreNorm = 100;
-      else if (avgAhtSec <= 300) ahtScoreNorm = 100 - ((avgAhtSec - 240) / 60) * 25;
-      else ahtScoreNorm = Math.max(0, 75 - ((avgAhtSec - 300) / 60) * 40);
+      else ahtScoreNorm = Math.max(20, Math.round(100 - ((avgAhtSec - 240) / 240) * 50));
     }
 
     const compositeScore = parseFloat(((caAvg * 0.30) + (Math.min(100, tiketPct) * 0.30) + (artScoreNorm * 0.20) + (ahtScoreNorm * 0.20)).toFixed(2));
@@ -4397,12 +4500,12 @@ function getCaDynamicColor(scoreNum, hasData = true) {
   let passIcon = 'fa-solid fa-triangle-exclamation';
 
   if (scoreNum >= 95.0) {
-    grade = 'Sangat Baik (≥95.00)';
+    grade = 'Sangat Baik';
     passStatus = 'Lulus SOP';
     passClass = 'badge-green';
     passIcon = 'fa-solid fa-check';
   } else if (scoreNum >= 85.0) {
-    grade = 'Baik (Sedang)';
+    grade = 'Baik';
     passStatus = 'Lulus SOP';
     passClass = 'badge-green';
     passIcon = 'fa-solid fa-check';
@@ -4541,8 +4644,7 @@ function getArtDynamicColor(artSec, hasData = true) {
 
 /**
  * Dynamic color interpolation for AHT (Average Handling Time in seconds):
- * Lower is better! Target SLA <= 300s (5 Menit), Super efficient <= 240s (4 Menit)
- * Hijau (Bagus, <= 240s) -> Hijau Muda (Sesuai SLA, 241 - 300s) -> Kuning (Over SLA, 301 - 360s) -> Merah (> 360s)
+ * Visualisasi durasi penanganan interaksi customer.
  */
 function getAhtDynamicColor(ahtSec, hasData = true) {
   if (!hasData || isNaN(ahtSec) || ahtSec <= 0) {
@@ -4559,18 +4661,14 @@ function getAhtDynamicColor(ahtSec, hasData = true) {
     };
   }
 
-  let hue = 0;
+  let hue = 140;
   if (ahtSec <= 240) {
-    const factor = Math.min(1, Math.max(0, (240 - ahtSec) / 120));
-    hue = Math.round(110 + factor * 30); // 110 -> 140
-  } else if (ahtSec <= 300) {
-    const factor = (300 - ahtSec) / 60.0;
-    hue = Math.round(55 + factor * 55); // 55 -> 110
+    hue = 140;
   } else if (ahtSec <= 360) {
-    const factor = Math.max(0, (360 - ahtSec) / 60.0);
-    hue = Math.round(factor * 55); // 0 -> 55
+    const factor = (360 - ahtSec) / 120.0;
+    hue = Math.round(90 + factor * 50); // 90 -> 140
   } else {
-    hue = 0;
+    hue = 90;
   }
 
   const color = `hsl(${hue}, 88%, 50%)`;
@@ -4578,26 +4676,21 @@ function getAhtDynamicColor(ahtSec, hasData = true) {
   const borderColor = `hsla(${hue}, 88%, 50%, 0.4)`;
   const barColor = `linear-gradient(90deg, hsla(${Math.max(0, hue - 20)}, 92%, 48%, 0.85), hsl(${hue}, 88%, 50%))`;
 
-  let grade = 'Over SLA';
-  let status = `Over SLA (+${Math.round(ahtSec - 300)}s)`;
-  let badgeClass = 'badge-yellow';
-  let badgeIcon = 'fa-solid fa-triangle-exclamation text-yellow';
+  let grade = 'Normal';
+  let status = `${ahtSec}s`;
+  let badgeClass = 'badge-green';
+  let badgeIcon = 'fa-solid fa-clock text-green';
 
   if (ahtSec <= 240) {
     grade = 'Sangat Efisien';
     status = 'Efisien (≤240s)';
     badgeClass = 'badge-green';
     badgeIcon = 'fa-solid fa-bolt text-green';
-  } else if (ahtSec <= 300) {
-    grade = 'Sesuai SLA';
-    status = 'Sesuai SLA (≤300s)';
-    badgeClass = 'badge-green';
-    badgeIcon = 'fa-solid fa-circle-check text-green';
-  } else if (ahtSec > 360) {
-    grade = 'Over SLA Kritis';
-    status = `Over SLA (+${Math.round(ahtSec - 300)}s)`;
-    badgeClass = 'badge-red';
-    badgeIcon = 'fa-solid fa-triangle-exclamation text-red';
+  } else {
+    grade = 'Normal';
+    status = `${ahtSec}s`;
+    badgeClass = 'badge-cyan';
+    badgeIcon = 'fa-solid fa-circle-check text-cyan';
   }
 
   return { color, bgColor, borderColor, barColor, grade, status, badgeClass, badgeIcon, hue };
@@ -4631,13 +4724,13 @@ function updateOverviewLegendAndTitles() {
     if (badgeEl) badgeEl.innerHTML = '<i class="fa-solid fa-star"></i> CA (Customer Attributes)';
   } else if (overviewActiveCategory === 'TIKET') {
     if (titleEl) titleEl.textContent = 'Ringkasan Perolehan Tiket User';
-    if (badgeEl) badgeEl.innerHTML = '<i class="fa-solid fa-ticket"></i> Tiket (Target 1.320)';
+    if (badgeEl) badgeEl.innerHTML = '<i class="fa-solid fa-ticket"></i> Tiket';
   } else if (overviewActiveCategory === 'ART') {
     if (titleEl) titleEl.textContent = 'Ringkasan Average Response Time (ART) User';
-    if (badgeEl) badgeEl.innerHTML = '<i class="fa-solid fa-bolt"></i> ART (SLA ≤30s)';
+    if (badgeEl) badgeEl.innerHTML = '<i class="fa-solid fa-bolt"></i> ART';
   } else if (overviewActiveCategory === 'AHT') {
     if (titleEl) titleEl.textContent = 'Ringkasan Average Handling Time (AHT) User';
-    if (badgeEl) badgeEl.innerHTML = '<i class="fa-solid fa-headset"></i> AHT (SLA ≤300s)';
+    if (badgeEl) badgeEl.innerHTML = '<i class="fa-solid fa-headset"></i> AHT';
   } else {
     // ALL
     if (titleEl) titleEl.textContent = 'Ringkasan Perolehan User';
@@ -4690,6 +4783,618 @@ window.promptDeleteAllOverviewMonth = function() {
   UI.modalConfirmDelete.classList.remove('hidden');
 };
 
+/**
+ * =====================================================================
+ * OVERVIEW VIEW MODE & CHART.JS INTEGRATION (DIAGRAM PENCAPAIAN USER)
+ * =====================================================================
+ */
+
+function destroyOverviewCharts() {
+  if (state.overviewChartInstances) {
+    Object.keys(state.overviewChartInstances).forEach(k => {
+      const inst = state.overviewChartInstances[k];
+      if (inst && typeof inst.destroy === 'function') {
+        try {
+          inst.destroy();
+        } catch (e) {}
+      }
+    });
+  }
+  state.overviewChartInstances = {};
+}
+
+function syncOverviewViewUI() {
+  const isChart = (overviewViewMode === 'chart');
+  const tableContainer = (UI && UI.overviewTableContainer) || document.getElementById('overviewTableContainer');
+  const chartsContainer = (UI && UI.overviewChartsContainer) || document.getElementById('overviewChartsContainer');
+
+  if (tableContainer) tableContainer.classList.toggle('hidden', isChart);
+  if (chartsContainer) chartsContainer.classList.toggle('hidden', !isChart);
+
+  const tabTable = (UI && UI.btnOverviewTabTable) || document.getElementById('btnOverviewTabTable');
+  const tabChart = (UI && UI.btnOverviewTabChart) || document.getElementById('btnOverviewTabChart');
+  if (tabTable) tabTable.classList.toggle('active', !isChart);
+  if (tabChart) tabChart.classList.toggle('active', isChart);
+
+  const toggleTable = (UI && UI.btnOverviewToggleTable) || document.getElementById('btnOverviewToggleTable');
+  const toggleChart = (UI && UI.btnOverviewToggleChart) || document.getElementById('btnOverviewToggleChart');
+  if (toggleTable) toggleTable.classList.toggle('active', !isChart);
+  if (toggleChart) toggleChart.classList.toggle('active', isChart);
+
+  const pageBadge = (UI && UI.overviewPageBadge) || document.getElementById('overviewPageBadge');
+  if (pageBadge) {
+    if (isChart) {
+      pageBadge.innerHTML = '<i class="fa-solid fa-chart-column text-yellow"></i> Grafik &amp; Diagram Pencapaian';
+    } else {
+      updateOverviewLegendAndTitles();
+    }
+  }
+}
+
+function switchOverviewView(mode) {
+  overviewViewMode = (mode === 'chart') ? 'chart' : 'table';
+  saveOverviewUserPref({ viewMode: overviewViewMode });
+  saveUserControl('overviewViewMode', overviewViewMode);
+  syncOverviewViewUI();
+  if (overviewViewMode === 'chart') {
+    renderOverviewPage();
+  }
+}
+
+if (typeof window !== 'undefined') {
+  window.switchOverviewView = switchOverviewView;
+  window.destroyOverviewCharts = destroyOverviewCharts;
+}
+
+// Target Line Custom Plugin for Chart.js
+const overviewTargetLinePlugin = {
+  id: 'overviewTargetLinePlugin',
+  afterDraw(chart, args, options) {
+    if (!options || typeof options.value !== 'number') return;
+    const { ctx, chartArea, scales } = chart;
+    if (!chartArea || !scales || !scales.y) return;
+    const yVal = scales.y.getPixelForValue(options.value);
+    if (yVal >= chartArea.top && yVal <= chartArea.bottom) {
+      ctx.save();
+      ctx.strokeStyle = options.color || '#f59e0b';
+      ctx.lineWidth = options.lineWidth || 1.5;
+      ctx.setLineDash(options.dash || [6, 4]);
+      ctx.beginPath();
+      ctx.moveTo(chartArea.left, yVal);
+      ctx.lineTo(chartArea.right, yVal);
+      ctx.stroke();
+
+      if (options.label) {
+        ctx.fillStyle = options.color || '#f59e0b';
+        ctx.font = "bold 10px 'Plus Jakarta Sans', sans-serif";
+        ctx.textAlign = 'right';
+        ctx.fillText(options.label, chartArea.right - 8, yVal - 5);
+      }
+      ctx.restore();
+    }
+  }
+};
+
+function renderOverviewCharts(data, category) {
+  if (typeof Chart === 'undefined') return;
+
+  if (!data) {
+    data = calculateOverviewCombinedData();
+  }
+
+  const searchInput = (UI && UI.searchOverviewCaInput) || document.getElementById('searchOverviewCaInput');
+  const query = (searchInput ? searchInput.value : overviewSearchQuery || '').toLowerCase().trim();
+  let list = data;
+  if (query) {
+    list = list.filter(item => {
+      const name = (item.fullName || '').toLowerCase();
+      const dept = (item.department || '').toLowerCase();
+      const email = (item.email || '').toLowerCase();
+      const uname = (item.user && item.user.username ? item.user.username : '').toLowerCase();
+      return name.includes(query) || dept.includes(query) || email.includes(query) || uname.includes(query);
+    });
+  }
+
+  const chartsGrid = (UI && UI.overviewChartsGrid) || document.getElementById('overviewChartsGrid');
+  const emptyCharts = (UI && UI.emptyOverviewCharts) || document.getElementById('emptyOverviewCharts');
+
+  if (!list || list.length === 0) {
+    if (chartsGrid) chartsGrid.classList.add('hidden');
+    if (emptyCharts) emptyCharts.classList.remove('hidden');
+    destroyOverviewCharts();
+    return;
+  }
+  if (chartsGrid) chartsGrid.classList.remove('hidden');
+  if (emptyCharts) emptyCharts.classList.add('hidden');
+
+  // Quick KPI Cards update
+  const caUsers = list.filter(d => d.hasCa);
+  const tiketUsers = list.filter(d => d.hasTiket);
+  const artUsers = list.filter(d => d.hasArt);
+  const ahtUsers = list.filter(d => d.hasAht);
+
+  const kpiCaEl = document.getElementById('overviewKpiCaAvg');
+  const kpiCaSub = document.getElementById('overviewKpiCaSub');
+  if (kpiCaEl) {
+    if (caUsers.length > 0) {
+      const avg = caUsers.reduce((acc, d) => acc + d.caAvg, 0) / caUsers.length;
+      kpiCaEl.textContent = avg.toFixed(2);
+      if (kpiCaSub) kpiCaSub.textContent = `${caUsers.length} CSO dinilai (Grade: ≥85 SOP)`;
+    } else {
+      kpiCaEl.textContent = '-';
+      if (kpiCaSub) kpiCaSub.textContent = 'Belum ada data CA';
+    }
+  }
+
+  const kpiTiketEl = document.getElementById('overviewKpiTiketTotal');
+  const kpiTiketSub = document.getElementById('overviewKpiTiketSub');
+  if (kpiTiketEl) {
+    if (tiketUsers.length > 0) {
+      const sum = tiketUsers.reduce((acc, d) => acc + d.tiketCount, 0);
+      kpiTiketEl.textContent = sum.toLocaleString('id-ID');
+      const targetTotal = list.length * 1320;
+      const pct = targetTotal > 0 ? ((sum / targetTotal) * 100).toFixed(1) : '0';
+      if (kpiTiketSub) kpiTiketSub.textContent = `${tiketUsers.length} CSO berkontribusi (${pct}% target tim)`;
+    } else {
+      kpiTiketEl.textContent = '-';
+      if (kpiTiketSub) kpiTiketSub.textContent = 'Belum ada data tiket';
+    }
+  }
+
+  const kpiArtEl = document.getElementById('overviewKpiArtAvg');
+  const kpiArtSub = document.getElementById('overviewKpiArtSub');
+  if (kpiArtEl) {
+    if (artUsers.length > 0) {
+      const avg = artUsers.reduce((acc, d) => acc + d.avgArtSec, 0) / artUsers.length;
+      kpiArtEl.textContent = `${avg.toFixed(1)}s`;
+      const compliant = artUsers.filter(d => d.avgArtSec <= 30).length;
+      if (kpiArtSub) kpiArtSub.textContent = `SLA <30s (${compliant}/${artUsers.length} patuh)`;
+    } else {
+      kpiArtEl.textContent = '-';
+      if (kpiArtSub) kpiArtSub.textContent = 'Belum ada data ART';
+    }
+  }
+
+  const kpiAhtEl = document.getElementById('overviewKpiAhtAvg');
+  const kpiAhtSub = document.getElementById('overviewKpiAhtSub');
+  if (kpiAhtEl) {
+    if (ahtUsers.length > 0) {
+      const avg = ahtUsers.reduce((acc, d) => acc + d.avgAhtSec, 0) / ahtUsers.length;
+      kpiAhtEl.textContent = `${Math.round(avg)}s`;
+      if (kpiAhtSub) kpiAhtSub.textContent = `${ahtUsers.length} CSO tercatat`;
+    } else {
+      kpiAhtEl.textContent = '-';
+      if (kpiAhtSub) kpiAhtSub.textContent = 'Belum ada data AHT';
+    }
+  }
+
+  // Filter Card Display by Category
+  const activeCat = category || overviewActiveCategory || 'ALL';
+  const cardCa = document.getElementById('overviewChartCardCa');
+  const cardTiket = document.getElementById('overviewChartCardTiket');
+  const cardArt = document.getElementById('overviewChartCardArt');
+  const cardAht = document.getElementById('overviewChartCardAht');
+  const cardMulti = document.getElementById('overviewChartCardMulti');
+
+  const showAll = (activeCat === 'ALL');
+  if (cardCa) {
+    cardCa.classList.toggle('hidden', !showAll && activeCat !== 'CA');
+    cardCa.style.gridColumn = (!showAll && activeCat === 'CA') ? '1 / -1' : '';
+  }
+  if (cardTiket) {
+    cardTiket.classList.toggle('hidden', !showAll && activeCat !== 'TIKET');
+    cardTiket.style.gridColumn = (!showAll && activeCat === 'TIKET') ? '1 / -1' : '';
+  }
+  if (cardArt) {
+    cardArt.classList.toggle('hidden', !showAll && activeCat !== 'ART');
+    cardArt.style.gridColumn = (!showAll && activeCat === 'ART') ? '1 / -1' : '';
+  }
+  if (cardAht) {
+    cardAht.classList.toggle('hidden', !showAll && activeCat !== 'AHT');
+    cardAht.style.gridColumn = (!showAll && activeCat === 'AHT') ? '1 / -1' : '';
+  }
+  if (cardMulti) {
+    cardMulti.classList.toggle('hidden', !showAll);
+  }
+
+  // Theme Colors
+  const isLight = document.body.classList.contains('theme-light') || (state && state.currentDisplayMode === 'light');
+  const textColor = isLight ? '#334155' : '#cbd5e1';
+  const gridColor = isLight ? 'rgba(0, 0, 0, 0.07)' : 'rgba(255, 255, 255, 0.06)';
+  const fontFam = "'Plus Jakarta Sans', sans-serif";
+
+  const tooltipOptions = {
+    backgroundColor: isLight ? 'rgba(255, 255, 255, 0.98)' : 'rgba(15, 20, 30, 0.96)',
+    titleColor: isLight ? '#0f172a' : '#ffffff',
+    bodyColor: isLight ? '#334155' : '#cbd5e1',
+    borderColor: isLight ? '#cbd5e1' : 'rgba(255, 255, 255, 0.15)',
+    borderWidth: 1,
+    padding: 10,
+    cornerRadius: 8,
+    boxPadding: 4,
+    usePointStyle: true
+  };
+
+  destroyOverviewCharts();
+  state.overviewChartInstances = {};
+
+  const labels = list.map(d => d.fullName);
+
+  // 1. Chart CA
+  if (showAll || activeCat === 'CA') {
+    const canvasCa = document.getElementById('canvasOverviewCa');
+    if (canvasCa) {
+      const dataCa = list.map(d => d.hasCa ? d.caAvg : 0);
+      const bgCa = list.map(d => !d.hasCa ? 'rgba(100, 116, 139, 0.4)' : d.caAvg >= 95 ? 'rgba(16, 185, 129, 0.85)' : d.caAvg >= 85 ? 'rgba(59, 130, 246, 0.85)' : 'rgba(239, 68, 68, 0.85)');
+      const borderCa = list.map(d => !d.hasCa ? '#94a3b8' : d.caAvg >= 95 ? '#059669' : d.caAvg >= 85 ? '#2563eb' : '#dc2626');
+
+      state.overviewChartInstances.ca = new Chart(canvasCa.getContext('2d'), {
+        type: 'bar',
+        data: {
+          labels,
+          datasets: [{
+            label: 'Skor CA',
+            data: dataCa,
+            backgroundColor: bgCa,
+            borderColor: borderCa,
+            borderWidth: 1.5,
+            borderRadius: 6,
+            maxBarThickness: 38
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              ...tooltipOptions,
+              callbacks: {
+                label(ctx) {
+                  const item = list[ctx.dataIndex];
+                  if (!item.hasCa) return 'Belum ada evaluasi CA';
+                  return `Skor CA: ${item.caAvg.toFixed(2)} (${item.caColor ? item.caColor.grade : ''})`;
+                },
+                afterLabel(ctx) {
+                  const item = list[ctx.dataIndex];
+                  if (!item.hasCa) return '';
+                  return `Jumlah Evaluasi: ${item.caCount} | Min: ${item.caMin} | Max: ${item.caMax}`;
+                }
+              }
+            },
+            overviewTargetLinePlugin: {
+              value: 85,
+              color: '#3b82f6',
+              label: 'Passing Grade SOP (85.00)'
+            }
+          },
+          scales: {
+            x: {
+              ticks: { color: textColor, font: { family: 'Plus Jakarta Sans', size: 11, weight: '600' }, maxRotation: 45 },
+              grid: { display: false }
+            },
+            y: {
+              min: 0,
+              max: 100,
+              ticks: {
+                color: textColor,
+                font: { family: 'Plus Jakarta Sans', size: 10 },
+                callback: v => v + '%'
+              },
+              grid: { color: gridColor }
+            }
+          }
+        },
+        plugins: [overviewTargetLinePlugin]
+      });
+    }
+  }
+
+  // 2. Chart Tiket
+  if (showAll || activeCat === 'TIKET') {
+    const canvasTiket = document.getElementById('canvasOverviewTiket');
+    if (canvasTiket) {
+      const dataTiket = list.map(d => d.tiketCount);
+      const bgTiket = list.map(d => d.tiketCount >= 1320 ? 'rgba(16, 185, 129, 0.85)' : d.tiketCount >= 1000 ? 'rgba(245, 158, 11, 0.85)' : 'rgba(239, 68, 68, 0.85)');
+      const borderTiket = list.map(d => d.tiketCount >= 1320 ? '#059669' : d.tiketCount >= 1000 ? '#d97706' : '#dc2626');
+
+      state.overviewChartInstances.tiket = new Chart(canvasTiket.getContext('2d'), {
+        type: 'bar',
+        data: {
+          labels,
+          datasets: [{
+            label: 'Total Tiket',
+            data: dataTiket,
+            backgroundColor: bgTiket,
+            borderColor: borderTiket,
+            borderWidth: 1.5,
+            borderRadius: 6,
+            maxBarThickness: 38
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              ...tooltipOptions,
+              callbacks: {
+                label(ctx) {
+                  const item = list[ctx.dataIndex];
+                  return `Realisasi: ${item.tiketCount.toLocaleString('id-ID')} Tiket (${item.tiketPct}%)`;
+                },
+                afterLabel(ctx) {
+                  const item = list[ctx.dataIndex];
+                  const diff = item.tiketDiff;
+                  if (diff >= 0) return `Status: Target Terpenuhi (Surplus +${diff.toLocaleString('id-ID')} Tiket)`;
+                  return `Status: Kurang ${Math.abs(diff).toLocaleString('id-ID')} Tiket dari target 1.320`;
+                }
+              }
+            },
+            overviewTargetLinePlugin: {
+              value: 1320,
+              color: '#ef4444',
+              label: 'Target Bulanan (1.320)'
+            }
+          },
+          scales: {
+            x: {
+              ticks: { color: textColor, font: { family: 'Plus Jakarta Sans', size: 11, weight: '600' }, maxRotation: 45 },
+              grid: { display: false }
+            },
+            y: {
+              min: 0,
+              suggestedMax: 1500,
+              ticks: {
+                color: textColor,
+                font: { family: 'Plus Jakarta Sans', size: 10 },
+                callback: v => v.toLocaleString('id-ID')
+              },
+              grid: { color: gridColor }
+            }
+          }
+        },
+        plugins: [overviewTargetLinePlugin]
+      });
+    }
+  }
+
+  // 3. Chart ART
+  if (showAll || activeCat === 'ART') {
+    const canvasArt = document.getElementById('canvasOverviewArt');
+    if (canvasArt) {
+      const dataArt = list.map(d => d.hasArt ? d.avgArtSec : 0);
+      const bgArt = list.map(d => !d.hasArt ? 'rgba(100, 116, 139, 0.4)' : d.avgArtSec <= 15 ? 'rgba(16, 185, 129, 0.85)' : d.avgArtSec <= 30 ? 'rgba(6, 182, 212, 0.85)' : 'rgba(239, 68, 68, 0.85)');
+      const borderArt = list.map(d => !d.hasArt ? '#94a3b8' : d.avgArtSec <= 15 ? '#059669' : d.avgArtSec <= 30 ? '#0891b2' : '#dc2626');
+
+      state.overviewChartInstances.art = new Chart(canvasArt.getContext('2d'), {
+        type: 'bar',
+        data: {
+          labels,
+          datasets: [{
+            label: 'ART (Detik)',
+            data: dataArt,
+            backgroundColor: bgArt,
+            borderColor: borderArt,
+            borderWidth: 1.5,
+            borderRadius: 6,
+            maxBarThickness: 38
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              ...tooltipOptions,
+              callbacks: {
+                label(ctx) {
+                  const item = list[ctx.dataIndex];
+                  if (!item.hasArt) return 'Belum ada data ART';
+                  return `Rata-rata ART: ${item.avgArtSec.toFixed(1)}s (${item.avgArtSec <= 30 ? 'Sesuai SLA' : 'Over SLA'})`;
+                },
+                afterLabel(ctx) {
+                  const item = list[ctx.dataIndex];
+                  if (!item.hasArt) return '';
+                  return `Total Interaksi: ${item.totalInteractions.toLocaleString('id-ID')} | Hari Input: ${item.artDays}`;
+                }
+              }
+            },
+            overviewTargetLinePlugin: {
+              value: 30,
+              color: '#06b6d4',
+              label: 'Batas SLA (<30s)'
+            }
+          },
+          scales: {
+            x: {
+              ticks: { color: textColor, font: { family: 'Plus Jakarta Sans', size: 11, weight: '600' }, maxRotation: 45 },
+              grid: { display: false }
+            },
+            y: {
+              min: 0,
+              suggestedMax: 40,
+              ticks: {
+                color: textColor,
+                font: { family: 'Plus Jakarta Sans', size: 10 },
+                callback: v => v + 's'
+              },
+              grid: { color: gridColor }
+            }
+          }
+        },
+        plugins: [overviewTargetLinePlugin]
+      });
+    }
+  }
+
+  // 4. Chart AHT
+  if (showAll || activeCat === 'AHT') {
+    const canvasAht = document.getElementById('canvasOverviewAht');
+    if (canvasAht) {
+      const dataAht = list.map(d => d.hasAht ? d.avgAhtSec : 0);
+      const bgAht = list.map(d => !d.hasAht ? 'rgba(100, 116, 139, 0.4)' : 'rgba(16, 185, 129, 0.85)');
+      const borderAht = list.map(d => !d.hasAht ? '#94a3b8' : '#059669');
+
+      state.overviewChartInstances.aht = new Chart(canvasAht.getContext('2d'), {
+        type: 'bar',
+        data: {
+          labels,
+          datasets: [{
+            label: 'AHT (Detik)',
+            data: dataAht,
+            backgroundColor: bgAht,
+            borderColor: borderAht,
+            borderWidth: 1.5,
+            borderRadius: 6,
+            maxBarThickness: 38
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              ...tooltipOptions,
+              callbacks: {
+                label(ctx) {
+                  const item = list[ctx.dataIndex];
+                  if (!item.hasAht) return 'Belum ada data AHT';
+                  return `Rata-rata AHT: ${item.avgAhtSec} Detik`;
+                },
+                afterLabel(ctx) {
+                  const item = list[ctx.dataIndex];
+                  if (!item.hasAht) return '';
+                  return `Total Interaksi: ${item.ahtTotalInteractions.toLocaleString('id-ID')} | Total Durasi: ${item.ahtTotalDurationSec.toLocaleString('id-ID')}s`;
+                }
+              }
+            }
+          },
+          scales: {
+            x: {
+              ticks: { color: textColor, font: { family: 'Plus Jakarta Sans', size: 11, weight: '600' }, maxRotation: 45 },
+              grid: { display: false }
+            },
+            y: {
+              min: 0,
+              suggestedMax: 360,
+              ticks: {
+                color: textColor,
+                font: { family: 'Plus Jakarta Sans', size: 10 },
+                callback: v => v + 's'
+              },
+              grid: { color: gridColor }
+            }
+          }
+        }
+      });
+    }
+  }
+
+  // 5. Chart Multi-Metrik Comparison
+  if (showAll) {
+    const canvasMulti = document.getElementById('canvasOverviewMulti');
+    if (canvasMulti) {
+      state.overviewChartInstances.multi = new Chart(canvasMulti.getContext('2d'), {
+        type: 'bar',
+        data: {
+          labels,
+          datasets: [
+            {
+              label: 'Skor CA (%)',
+              data: list.map(d => d.hasCa ? d.caAvg : 0),
+              backgroundColor: 'rgba(250, 204, 21, 0.85)',
+              borderColor: '#eab308',
+              borderWidth: 1,
+              borderRadius: 4
+            },
+            {
+              label: '% Target Tiket',
+              data: list.map(d => Math.min(100, d.tiketPct)),
+              backgroundColor: 'rgba(239, 68, 68, 0.85)',
+              borderColor: '#dc2626',
+              borderWidth: 1,
+              borderRadius: 4
+            },
+            {
+              label: '% Efisiensi ART',
+              data: list.map(d => {
+                if (!d.hasArt || d.avgArtSec <= 0) return 0;
+                if (d.avgArtSec <= 15) return 100;
+                if (d.avgArtSec <= 30) return Math.round(100 - ((d.avgArtSec - 15) / 15) * 25);
+                return Math.max(10, Math.round(75 - ((d.avgArtSec - 30) / 15) * 35));
+              }),
+              backgroundColor: 'rgba(6, 182, 212, 0.85)',
+              borderColor: '#0891b2',
+              borderWidth: 1,
+              borderRadius: 4
+            },
+            {
+              label: '% Efisiensi AHT',
+              data: list.map(d => {
+                if (!d.hasAht || d.avgAhtSec <= 0) return 0;
+                if (d.avgAhtSec <= 240) return 100;
+                return Math.max(10, Math.round(100 - ((d.avgAhtSec - 240) / 240) * 50));
+              }),
+              backgroundColor: 'rgba(16, 185, 129, 0.85)',
+              borderColor: '#059669',
+              borderWidth: 1,
+              borderRadius: 4
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              position: 'top',
+              labels: {
+                color: textColor,
+                font: { family: 'Plus Jakarta Sans', size: 11, weight: '600' },
+                padding: 14,
+                boxWidth: 14,
+                boxHeight: 14,
+                usePointStyle: true
+              }
+            },
+            tooltip: {
+              ...tooltipOptions,
+              callbacks: {
+                label(ctx) {
+                  return `${ctx.dataset.label}: ${ctx.raw}%`;
+                }
+              }
+            }
+          },
+          scales: {
+            x: {
+              ticks: { color: textColor, font: { family: 'Plus Jakarta Sans', size: 11, weight: '600' }, maxRotation: 45 },
+              grid: { display: false }
+            },
+            y: {
+              min: 0,
+              max: 100,
+              ticks: {
+                color: textColor,
+                font: { family: 'Plus Jakarta Sans', size: 10 },
+                callback: v => v + '%'
+              },
+              grid: { color: gridColor }
+            }
+          }
+        }
+      });
+    }
+  }
+}
+if (typeof window !== 'undefined') {
+  window.renderOverviewCharts = renderOverviewCharts;
+}
+
 function renderOverviewPage() {
   if (typeof updateDynamicMonthDropdowns === 'function') {
     updateDynamicMonthDropdowns();
@@ -4700,6 +5405,7 @@ function renderOverviewPage() {
   }
   syncOverviewUserPreferences();
   updateOverviewLegendAndTitles();
+  syncOverviewViewUI();
 
   const data = calculateOverviewCombinedData();
   const searchInput = (UI && UI.searchOverviewCaInput) || document.getElementById('searchOverviewCaInput');
@@ -4800,11 +5506,10 @@ function renderOverviewPage() {
           <th style="width: 80px; text-align: center;">Peringkat (CA)</th>
           <th>Petugas CSO</th>
           <th>Layanan CSO</th>
-          <th style="text-align: center;">Jumlah Evaluasi</th>
           <th style="text-align: center;">Rentang Skor</th>
           <th class="overview-sortable-th" data-metric="ca" style="width: 250px;" title="Klik untuk mengurutkan nilai CA (Besar ke Kecil / Kecil ke Besar)">
             <div style="display:flex; align-items:center; justify-content:space-between; gap:6px;">
-              <span><i class="fa-solid fa-star text-yellow" style="margin-right:5px;"></i>Skor CA [2 Desimal]</span>
+              <span><i class="fa-solid fa-star text-yellow" style="margin-right:5px;"></i>Skor CA</span>
               ${sortIcon('ca')}
             </div>
           </th>
@@ -4818,7 +5523,6 @@ function renderOverviewPage() {
           <th style="width: 80px; text-align: center;">Peringkat (Tiket)</th>
           <th>Petugas CSO</th>
           <th>Layanan CSO</th>
-          <th style="text-align: center;">Hari Input</th>
           <th class="overview-sortable-th" data-metric="tiket" style="width: 230px;" title="Klik untuk mengurutkan Total Tiket (Besar ke Kecil / Kecil ke Besar)">
             <div style="display:flex; align-items:center; justify-content:space-between; gap:6px;">
               <span><i class="fa-solid fa-ticket text-red" style="margin-right:5px;"></i>Total Tiket</span>
@@ -4837,11 +5541,7 @@ function renderOverviewPage() {
           <th style="width: 80px; text-align: center;">Peringkat (ART)</th>
           <th>Petugas CSO</th>
           <th>Layanan CSO</th>
-          <th style="text-align: center;">Hari Input</th>
-          <th style="text-align: center;">Total Interaksi</th>
-          <th style="text-align: center;">Queue Time</th>
-          <th style="text-align: center;">FRT (Detik)</th>
-          <th class="overview-sortable-th" data-metric="art" style="width: 230px;" title="Klik untuk mengurutkan Waktu ART (Besar ke Kecil / Kecil ke Besar)">
+          <th class="overview-sortable-th" data-metric="art" style="width: 260px;" title="Klik untuk mengurutkan Waktu ART (Besar ke Kecil / Kecil ke Besar)">
             <div style="display:flex; align-items:center; justify-content:space-between; gap:6px;">
               <span><i class="fa-solid fa-bolt text-yellow" style="margin-right:5px;"></i>Rata-rata ART</span>
               ${sortIcon('art')}
@@ -4857,17 +5557,13 @@ function renderOverviewPage() {
           <th style="width: 80px; text-align: center;">Peringkat (AHT)</th>
           <th>Petugas CSO</th>
           <th>Layanan CSO</th>
-          <th style="text-align: center;">Hari Input</th>
-          <th style="text-align: center;">Total Interaksi</th>
           <th style="text-align: center;">Total Durasi</th>
-          <th class="overview-sortable-th" data-metric="aht" style="width: 230px;" title="Klik untuk mengurutkan Waktu AHT (Besar ke Kecil / Kecil ke Besar)">
+          <th class="overview-sortable-th" data-metric="aht" style="width: 260px;" title="Klik untuk mengurutkan Waktu AHT (Besar ke Kecil / Kecil ke Besar)">
             <div style="display:flex; align-items:center; justify-content:space-between; gap:6px;">
               <span><i class="fa-solid fa-headset text-yellow" style="margin-right:5px;"></i>Rata-rata AHT</span>
               ${sortIcon('aht')}
             </div>
           </th>
-          <th style="text-align: center;">Target SLA</th>
-          <th style="text-align: center;">Status SLA</th>
         </tr>
       `;
     } else {
@@ -4879,25 +5575,25 @@ function renderOverviewPage() {
           <th>Layanan CSO</th>
           <th class="overview-sortable-th" data-metric="ca" style="width: 195px;" title="Klik untuk mengurutkan Skor CA">
             <div style="display:flex; align-items:center; justify-content:space-between; gap:6px;">
-              <span><i class="fa-solid fa-star text-yellow" style="margin-right:4px;"></i>Skor CA [2 Desimal]</span>
+              <span><i class="fa-solid fa-star text-yellow" style="margin-right:4px;"></i>Skor CA</span>
               ${sortIcon('ca')}
             </div>
           </th>
           <th class="overview-sortable-th" data-metric="tiket" style="width: 195px;" title="Klik untuk mengurutkan Realisasi Tiket">
             <div style="display:flex; align-items:center; justify-content:space-between; gap:6px;">
-              <span><i class="fa-solid fa-ticket text-red" style="margin-right:4px;"></i>Tiket (Tgt 1.320)</span>
+              <span><i class="fa-solid fa-ticket text-red" style="margin-right:4px;"></i>Tiket</span>
               ${sortIcon('tiket')}
             </div>
           </th>
           <th class="overview-sortable-th" data-metric="art" style="width: 185px;" title="Klik untuk mengurutkan Kecepatan ART">
             <div style="display:flex; align-items:center; justify-content:space-between; gap:6px;">
-              <span><i class="fa-solid fa-bolt text-yellow" style="margin-right:4px;"></i>ART (SLA ≤30s)</span>
+              <span><i class="fa-solid fa-bolt text-yellow" style="margin-right:4px;"></i>ART</span>
               ${sortIcon('art')}
             </div>
           </th>
           <th class="overview-sortable-th" data-metric="aht" style="width: 185px;" title="Klik untuk mengurutkan Waktu AHT">
             <div style="display:flex; align-items:center; justify-content:space-between; gap:6px;">
-              <span><i class="fa-solid fa-headset text-yellow" style="margin-right:4px;"></i>AHT (SLA ≤300s)</span>
+              <span><i class="fa-solid fa-headset text-yellow" style="margin-right:4px;"></i>AHT</span>
               ${sortIcon('aht')}
             </div>
           </th>
@@ -4989,11 +5685,6 @@ function renderOverviewPage() {
         <td>${agentProfileHtml}</td>
         <td>${deptHtml}</td>
         <td style="text-align: center;">
-          <span class="badge badge-gray" style="font-family: monospace; font-size: 0.8rem;">
-            ${item.caCount} Hari
-          </span>
-        </td>
-        <td style="text-align: center;">
           <span class="font-mono" style="font-size: 0.8rem; color: var(--gray-300);">
             ${caRangeFormatted}
           </span>
@@ -5003,7 +5694,6 @@ function renderOverviewPage() {
             <span style="color: ${colorData.color}; font-size: 1.05rem; font-weight: 800; font-family: monospace; text-shadow: 0 0 10px ${colorData.color}44;">
               ${caScoreFormatted}
             </span>
-            <small style="color: var(--gray-400); font-size: 0.7rem;">Target: 85.00</small>
           </div>
           <div class="ca-mini-bar-track">
             <div class="ca-mini-bar-fill" style="width: ${Math.min(100, Math.max(0, item.caAvg))}%; background: ${colorData.barColor}; box-shadow: 0 0 8px ${colorData.color}66;"></div>
@@ -5031,15 +5721,11 @@ function renderOverviewPage() {
         <td style="text-align: center; font-weight: 700;">${rankBadgeHtml}</td>
         <td>${agentProfileHtml}</td>
         <td>${deptHtml}</td>
-        <td style="text-align: center;">
-          <span class="badge badge-gray font-mono">${item.tiketDays} Hari</span>
-        </td>
         <td>
           <div style="display: flex; align-items: baseline; justify-content: space-between;">
             <span style="color: ${colorData.color}; font-size: 1.05rem; font-weight: 800; font-family: monospace; text-shadow: 0 0 10px ${colorData.color}44;">
               ${countFormatted} Tiket
             </span>
-            <small style="color: var(--gray-400); font-size: 0.7rem;">Target: 1.320</small>
           </div>
           <div class="ca-mini-bar-track">
             <div class="ca-mini-bar-fill" style="width: ${Math.min(100, Math.max(0, item.tiketPct))}%; background: ${colorData.barColor}; box-shadow: 0 0 8px ${colorData.color}66;"></div>
@@ -5072,24 +5758,11 @@ function renderOverviewPage() {
         <td style="text-align: center; font-weight: 700;">${rankBadgeHtml}</td>
         <td>${agentProfileHtml}</td>
         <td>${deptHtml}</td>
-        <td style="text-align: center;">
-          <span class="badge badge-gray font-mono">${item.artDays} Hari</span>
-        </td>
-        <td style="text-align: center;">
-          <span class="font-mono text-white">${item.totalInteractions.toLocaleString('id-ID')}</span>
-        </td>
-        <td style="text-align: center;">
-          <span class="font-mono text-muted">${item.avgQueueSec}s</span>
-        </td>
-        <td style="text-align: center;">
-          <span class="font-mono text-muted">${item.avgFrtSec}s</span>
-        </td>
         <td>
           <div style="display: flex; align-items: baseline; justify-content: space-between;">
             <span style="color: ${colorData.color}; font-size: 1.05rem; font-weight: 800; font-family: monospace; text-shadow: 0 0 10px ${colorData.color}44;">
               ${artFormatted}
             </span>
-            <small style="color: var(--gray-400); font-size: 0.7rem;">SLA: ≤30.0s</small>
           </div>
           <div class="ca-mini-bar-track">
             <div class="ca-mini-bar-fill" style="width: ${Math.min(100, Math.max(0, (item.avgArtSec / 45) * 100))}%; background: ${colorData.barColor}; box-shadow: 0 0 8px ${colorData.color}66;"></div>
@@ -5114,12 +5787,6 @@ function renderOverviewPage() {
         <td>${agentProfileHtml}</td>
         <td>${deptHtml}</td>
         <td style="text-align: center;">
-          <span class="badge badge-gray font-mono">${item.ahtDays} Hari</span>
-        </td>
-        <td style="text-align: center;">
-          <span class="font-mono text-white">${item.ahtTotalInteractions.toLocaleString('id-ID')}</span>
-        </td>
-        <td style="text-align: center;">
           <span class="font-mono text-muted">${durFormatted}</span>
         </td>
         <td>
@@ -5127,19 +5794,10 @@ function renderOverviewPage() {
             <span style="color: ${colorData.color}; font-size: 1.05rem; font-weight: 800; font-family: monospace; text-shadow: 0 0 10px ${colorData.color}44;">
               ${ahtFormatted}
             </span>
-            <small style="color: var(--gray-400); font-size: 0.7rem;">SLA: ≤300s</small>
           </div>
           <div class="ca-mini-bar-track">
             <div class="ca-mini-bar-fill" style="width: ${Math.min(100, Math.max(0, (item.avgAhtSec / 360) * 100))}%; background: ${colorData.barColor}; box-shadow: 0 0 8px ${colorData.color}66;"></div>
           </div>
-        </td>
-        <td style="text-align: center;">
-          <span class="font-mono text-muted">≤ 300s</span>
-        </td>
-        <td style="text-align: center;">
-          <span class="badge ${colorData.badgeClass}" style="font-size: 0.75rem;">
-            <i class="${colorData.badgeIcon}" style="margin-right: 4px;"></i>${colorData.grade}
-          </span>
         </td>
       `;
     } else {
@@ -5201,6 +5859,10 @@ function renderOverviewPage() {
 
     tbody.appendChild(tr);
   });
+
+  if (overviewViewMode === 'chart') {
+    renderOverviewCharts(filtered, overviewActiveCategory);
+  }
 }
 
 function getStockBadge(stock) {
@@ -9977,7 +10639,7 @@ function renderCaPage() {
   let userSummaries = [];
   if (isAdmin) {
     userSummaries = users.map(u => {
-      const userLogs = monthLogs.filter(l => l.userFullName === u.fullName || (u.username && l.username === u.username));
+      const userLogs = monthLogs.filter(l => isLogMatchUser(l, u));
       const daysEvaluated = userLogs.length;
       let avgScore = 0;
       let minScore = 0;
@@ -10047,7 +10709,7 @@ function renderCaPage() {
     if (UI.caUserSummaryBody) {
       UI.caUserSummaryBody.innerHTML = '';
       if (userSummaries.length === 0) {
-        UI.caUserSummaryBody.innerHTML = '<tr><td colspan="8" style="text-align:center; padding:24px; color:var(--gray-400);">Tidak ada data pengguna terdaftar.</td></tr>';
+        UI.caUserSummaryBody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:24px; color:var(--gray-400);">Tidak ada data pengguna terdaftar.</td></tr>';
       } else {
         userSummaries.forEach(summary => {
           const u = summary.user;
@@ -10066,7 +10728,6 @@ function renderCaPage() {
               </div>
             </td>
             <td><span class="badge badge-gray" style="font-size:0.75rem;"><i class="fa-solid fa-headset text-red" style="margin-right:4px;"></i>${u.department || 'CSO Layanan'}</span></td>
-            <td style="text-align: center;"><span class="font-mono font-bold" style="color:var(--gray-200);">${summary.daysEvaluated} Hari</span></td>
             <td style="text-align: right;"><strong class="text-red font-mono" style="font-size:1.05rem;">${summary.daysEvaluated > 0 ? formatCaScore(summary.avgScore) : '-'}</strong></td>
             <td><span class="badge ${summary.gradeBadge}" style="font-size:0.75rem;">${summary.grade}</span></td>
             <td style="text-align: center;"><span class="font-mono" style="font-size:0.8rem; color:var(--gray-300);">${summary.daysEvaluated > 0 ? formatCaScore(summary.minScore) + ' / ' + formatCaScore(summary.maxScore) : '-'}</span></td>
@@ -10167,7 +10828,7 @@ function renderCaPage() {
     }
   } else {
     // User Mode: Strictly calculate score average for this one logged-in user
-    const userMonthLogs = monthLogs.filter(l => l.userFullName === currentFullName || (currentUser && currentUser.username && l.username === currentUser.username));
+    const userMonthLogs = monthLogs.filter(l => isLogMatchUser(l, currentUser));
     let userAvg = '0.00';
     if (userMonthLogs.length > 0) {
       const totalScore = userMonthLogs.reduce((acc, l) => acc + (Number(l.score) || 0), 0);
@@ -10177,7 +10838,7 @@ function renderCaPage() {
     if (UI.caStatAvgScoreLabel) UI.caStatAvgScoreLabel.textContent = 'Rata-rata Skor Bulan Ini';
     if (UI.caStatAvgScoreSubtext) {
       UI.caStatAvgScoreSubtext.textContent = userMonthLogs.length > 0
-        ? `Rata-rata penilaian mutu Anda (${userMonthLogs.length} hari dinilai)`
+        ? `Rata-rata penilaian mutu Anda (${userMonthLogs.length} transaksi dinilai)`
         : 'Belum ada penilaian untuk Anda bulan ini';
     }
     if (UI.caStatTotalSamples) UI.caStatTotalSamples.textContent = `${userMonthLogs.length} Entri`;
@@ -10202,8 +10863,8 @@ function renderCaPage() {
   }
 
   const filteredLogs = monthLogs.filter(item => {
-    // Non-admin can strictly ONLY see their own logs
-    if (!isAdmin && item.userFullName !== currentFullName && !(currentUser && currentUser.username && item.username === currentUser.username)) return false;
+    // Non-admin can strictly ONLY see their own logs (case-insensitive)
+    if (!isAdmin && !isLogMatchUser(item, currentUser)) return false;
     if (adminNames.has(String(item.userFullName || '').trim().toLowerCase()) || (item.username && adminNames.has(String(item.username).trim().toLowerCase()))) return false;
 
     if (searchQ) {
@@ -10216,7 +10877,7 @@ function renderCaPage() {
                     (item.notes || '').toLowerCase().includes(searchQ);
       if (!match) return false;
     }
-    if (isAdmin && filterUser !== 'ALL' && item.userFullName !== filterUser && item.username !== filterUser) return false;
+    if (isAdmin && filterUser !== 'ALL' && !isLogMatchUser(item, { fullName: filterUser, username: filterUser })) return false;
     if (filterService !== 'ALL' && item.department !== filterService) return false;
     if (filterGrade !== 'ALL' && item.grade !== filterGrade) return false;
     return true;
@@ -10757,7 +11418,7 @@ function exportCaExcel() {
   }
 
   const sheet1Data = [
-    ['No', 'ID Evaluasi', 'Tanggal Evaluasi', 'Username Petugas CSO', 'Layanan CSO', 'Channel Interaksi', 'Skor Nilai CA', 'Kategori Mutu', 'Parameter Fokus Evaluasi', 'Status', 'Catatan Evaluasi']
+    ['No', 'ID Evaluasi', 'Tanggal Transaksi', 'Username Petugas CSO', 'Layanan CSO', 'Channel Interaksi', 'Skor Nilai CA', 'Kategori Mutu', 'Parameter Fokus Evaluasi', 'Status', 'Catatan Evaluasi']
   ];
   exportLogs.forEach((l, idx) => {
     sheet1Data.push([
@@ -10864,7 +11525,7 @@ const CA_APPS_SCRIPT_TEMPLATE = `/**
 const SHEET_NAME = 'CA_Data';
 const HEADERS = [
   'ID Evaluasi',
-  'Tanggal Evaluasi',
+  'Tanggal Transaksi',
   'Username Petugas CSO',
   'Layanan CSO',
   'Channel Interaksi',
@@ -11429,37 +12090,12 @@ async function pullCaFromGoogleSheets() {
     }
 
     if (pulledRows && pulledRows.length > 0) {
-      const allUsers = (state.getUsers ? state.getUsers() : []) || [];
-      const userMapByUsername = new Map();
-      const userMapByName = new Map();
-      allUsers.forEach(u => {
-        if (u.username) userMapByUsername.set(u.username.toLowerCase().trim(), u);
-        if (u.fullName) userMapByName.set(u.fullName.toLowerCase().trim(), u);
-      });
-
-      const resolveUser = (rawVal, defaultDept) => {
-        const trimmed = (rawVal || '').trim();
-        if (!trimmed) return { username: '', fullName: '', department: defaultDept || 'CSO INBOUND' };
-        const matched = userMapByUsername.get(trimmed.toLowerCase()) || userMapByName.get(trimmed.toLowerCase());
-        if (matched) {
-          return {
-            username: matched.username || trimmed,
-            fullName: matched.fullName || matched.username || trimmed,
-            department: matched.department || defaultDept || 'CSO INBOUND'
-          };
-        }
-        return {
-          username: trimmed,
-          fullName: trimmed,
-          department: defaultDept || 'CSO INBOUND'
-        };
-      };
-
       const normalizedLogs = pulledRows.map(row => {
         const rawUser = row.username || row.userFullName || '';
-        const uInfo = resolveUser(rawUser, row.department);
+        const uInfo = resolveSpreadsheetUser(rawUser, row.department);
         return {
           ...row,
+          userId: uInfo.userId || row.userId || '',
           username: uInfo.username,
           userFullName: uInfo.fullName,
           department: uInfo.department || row.department || 'CSO INBOUND'
@@ -11736,7 +12372,7 @@ function renderTiketPage() {
   });
 
   const userSummaries = filteredAgents.map(u => {
-    const userLogs = monthLogs.filter(l => l.userFullName === u.fullName);
+    const userLogs = monthLogs.filter(l => isLogMatchUser(l, u));
     const daysInput = userLogs.length;
     let totalTickets = 0;
     let avgDaily = '0,0';
@@ -11805,7 +12441,7 @@ function renderTiketPage() {
   if (UI.tiketUserSummaryBody) {
     UI.tiketUserSummaryBody.innerHTML = '';
     if (userSummaries.length === 0) {
-      UI.tiketUserSummaryBody.innerHTML = '<tr><td colspan="10" style="text-align:center; padding:24px; color:var(--gray-400);"><i class="fa-regular fa-folder-open" style="font-size:1.5rem; display:block; margin-bottom:6px; opacity:0.6;"></i>Tidak ada data perolehan tiket yang sesuai dengan filter.</td></tr>';
+      UI.tiketUserSummaryBody.innerHTML = '<tr><td colspan="9" style="text-align:center; padding:24px; color:var(--gray-400);"><i class="fa-regular fa-folder-open" style="font-size:1.5rem; display:block; margin-bottom:6px; opacity:0.6;"></i>Tidak ada data perolehan tiket yang sesuai dengan filter.</td></tr>';
     } else {
       userSummaries.forEach(summary => {
         const u = summary.user;
@@ -11858,7 +12494,6 @@ function renderTiketPage() {
             </div>
           </td>
           <td><span class="badge badge-gray" style="font-size:0.75rem;"><i class="fa-solid fa-headset text-red" style="margin-right:4px;"></i>${u.department || 'CSO Layanan'}</span></td>
-          <td style="text-align: center;"><span class="font-mono font-bold" style="color:var(--gray-200);">${summary.daysInput} Hari</span></td>
           <td style="text-align: center;"><span class="font-mono font-bold" style="color:#fff;">${summary.monthlyTarget.toLocaleString('id-ID')}</span></td>
           <td style="text-align: right;"><strong class="text-red font-mono" style="font-size:1.05rem;">${summary.daysInput > 0 ? summary.totalTickets.toLocaleString('id-ID') : '-'}</strong> <small style="font-size:0.75rem; color:var(--gray-400);">Tiket</small></td>
           <td style="text-align: center; min-width: 170px;">${kekuranganHtml}</td>
@@ -11944,7 +12579,7 @@ function renderTiketPage() {
     // ========================================================
     // REGULAR USER: ONLY OWN STATS ARE VISIBLE!
     // ========================================================
-    const myLogs = monthLogs.filter(l => l.userFullName === currentFullName || (currentUser && l.userId === currentUser.id));
+    const myLogs = monthLogs.filter(l => isLogMatchUser(l, currentUser));
     const myTotalTickets = myLogs.reduce((acc, l) => acc + (Number(l.ticketCount) || 0), 0);
     const myDaysInput = myLogs.length;
     const myDailyAvg = myDaysInput > 0 ? (myTotalTickets / myDaysInput).toFixed(1) : '0,0';
@@ -12032,10 +12667,7 @@ function renderTiketPage() {
     if (adminNames.has(String(item.userFullName || '').trim().toLowerCase())) return false;
     // SECURITY / RBAC: Regular user can ONLY see their own ticket logs
     if (!isAdmin) {
-      const matchSelf = (item.userFullName === currentFullName) ||
-                        (currentUser && item.userId === currentUser.id) ||
-                        (currentUser && item.username === currentUser.username);
-      if (!matchSelf) return false;
+      if (!isLogMatchUser(item, currentUser)) return false;
     }
     const tCount = Number(item.ticketCount) || 0;
     if (searchQ) {
@@ -12046,7 +12678,7 @@ function renderTiketPage() {
                     String(tCount).includes(searchQ);
       if (!match) return false;
     }
-    if (isAdmin && filterUser && filterUser !== 'ALL' && item.userFullName !== filterUser) return false;
+    if (isAdmin && filterUser && filterUser !== 'ALL' && !isLogMatchUser(item, { fullName: filterUser, username: filterUser })) return false;
     if (filterService && filterService !== 'ALL' && item.department !== filterService) return false;
     if (filterGrade === 'Tercapai' && tCount < 60) return false;
     if (filterGrade === 'Di Bawah Target' && tCount >= 60) return false;
@@ -13084,13 +13716,24 @@ async function pullTiketFromGoogleSheets() {
     }
 
     if (pulledRows && pulledRows.length > 0) {
-      state.saveTikets(pulledRows);
+      const normalizedLogs = pulledRows.map(row => {
+        const rawUser = row.userFullName || row.username || '';
+        const uInfo = resolveSpreadsheetUser(rawUser, row.department);
+        return {
+          ...row,
+          userId: uInfo.userId || row.userId || '',
+          username: uInfo.username,
+          userFullName: uInfo.fullName,
+          department: uInfo.department || row.department || 'CSO INBOUND'
+        };
+      });
+      state.saveTikets(normalizedLogs);
       const now = new Date();
       const formatted = `${String(now.getDate()).padStart(2, '0')}/${String(now.getMonth() + 1).padStart(2, '0')}/${now.getFullYear()} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
       config.lastSyncTime = formatted;
       state.saveTiketGSheetConfig(config);
       renderTiketPage();
-      showToast('Tarik Data Berhasil', `Berhasil mengambil <strong>${pulledRows.length} data tiket</strong> dari Google Spreadsheet.`, 'success');
+      showToast('Tarik Data Berhasil', `Berhasil mengambil <strong>${normalizedLogs.length} data tiket</strong> dari Google Spreadsheet.`, 'success');
     } else {
       showToast('Data Kosong / Tidak Terbaca', 'Tidak ada data tiket yang ditemukan pada Google Spreadsheet atau sheet masih kosong.', 'info');
     }
@@ -13300,7 +13943,7 @@ function renderAhtPage() {
   });
 
   const userSummaries = filteredAgents.map(u => {
-    const userLogs = monthLogs.filter(l => l.userFullName === u.fullName);
+    const userLogs = monthLogs.filter(l => isLogMatchUser(l, u));
     const daysInput = userLogs.length;
     let totalInteractions = 0;
     let totalDurationSeconds = 0;
@@ -13316,22 +13959,18 @@ function renderAhtPage() {
       totalInteractions = userLogs.reduce((acc, l) => acc + (Number(l.interactionCount) || 1), 0);
       totalDurationSeconds = userLogs.reduce((acc, l) => acc + (Number(l.totalDurationSeconds) || ((Number(l.actualSeconds) || 0) * (Number(l.interactionCount) || 1))), 0);
       avgAhtSec = Math.round(totalDurationSeconds / Math.max(1, totalInteractions));
-      complianceDays = userLogs.filter(l => (Number(l.actualSeconds) || 0) <= (Number(l.targetSeconds) || 300)).length;
-      complianceRate = ((complianceDays / daysInput) * 100).toFixed(1);
-      avgDeviationSec = avgAhtSec - 300;
+      complianceDays = daysInput;
+      complianceRate = '100.0';
+      avgDeviationSec = 0;
 
       if (avgAhtSec <= 240) {
         statusText = 'Sangat Efisien';
         statusBadge = 'badge-green';
         statusIcon = 'fa-solid fa-bolt text-green';
-      } else if (avgAhtSec <= 300) {
-        statusText = 'Sesuai SLA';
-        statusBadge = 'badge-green';
-        statusIcon = 'fa-solid fa-circle-check text-green';
       } else {
-        statusText = 'Over SLA';
-        statusBadge = 'badge-yellow';
-        statusIcon = 'fa-solid fa-triangle-exclamation text-yellow';
+        statusText = 'Normal';
+        statusBadge = 'badge-cyan';
+        statusIcon = 'fa-solid fa-circle-check text-cyan';
       }
     }
 
@@ -13374,7 +14013,7 @@ function renderAhtPage() {
   if (UI.ahtUserSummaryBody) {
     UI.ahtUserSummaryBody.innerHTML = '';
     if (userSummaries.length === 0) {
-      UI.ahtUserSummaryBody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:24px; color:var(--gray-400);"><i class="fa-regular fa-folder-open" style="font-size:1.5rem; display:block; margin-bottom:6px; opacity:0.6;"></i>Tidak ada data handling time yang sesuai dengan filter.</td></tr>';
+      UI.ahtUserSummaryBody.innerHTML = '<tr><td colspan="4" style="text-align:center; padding:24px; color:var(--gray-400);"><i class="fa-regular fa-folder-open" style="font-size:1.5rem; display:block; margin-bottom:6px; opacity:0.6;"></i>Tidak ada data handling time yang sesuai dengan filter.</td></tr>';
     } else {
       userSummaries.forEach(summary => {
         const u = summary.user;
@@ -13397,7 +14036,6 @@ function renderAhtPage() {
             </div>
           </td>
           <td><span class="badge badge-gray" style="font-size:0.75rem;"><i class="fa-solid fa-headset text-red" style="margin-right:4px;"></i>${u.department || 'CSO Layanan'}</span></td>
-          <td style="text-align: center;"><span class="font-mono font-bold" style="color:var(--gray-200);">${summary.daysInput} Hari</span></td>
           <td style="text-align: right;"><span class="font-mono text-silver" style="font-size:0.85rem;">${durFormatted}</span></td>
           <td style="text-align: center;"><strong class="text-white font-mono" style="font-size:1.05rem;">${avgFormatted}</strong></td>
           <td style="text-align: center;" class="hidden">
@@ -13484,7 +14122,7 @@ function renderAhtPage() {
     if (card4Label) card4Label.textContent = 'Agen Penanganan Tercepat';
   } else {
     // REGULAR USER STATS
-    const myLogs = monthLogs.filter(l => l.userFullName === currentFullName);
+    const myLogs = monthLogs.filter(l => isLogMatchUser(l, currentUser));
     const myDaysInput = myLogs.length;
     let myTotalDur = 0;
     let myTotalInteractions = 0;
@@ -13578,10 +14216,7 @@ function renderAhtPage() {
     if (adminNames.has(String(item.userFullName || '').trim().toLowerCase())) return false;
     // RBAC: Regular user can ONLY see their own logs
     if (!isAdmin) {
-      const matchSelf = (item.userFullName === currentFullName) ||
-                        (currentUser && item.userId === currentUser.id) ||
-                        (currentUser && item.username === currentUser.username);
-      if (!matchSelf) return false;
+      if (!isLogMatchUser(item, currentUser)) return false;
     }
 
     if (searchQ) {
@@ -13593,7 +14228,7 @@ function renderAhtPage() {
       if (!match) return false;
     }
 
-    if (isAdmin && filterUser !== 'ALL' && item.userFullName !== filterUser) return false;
+    if (isAdmin && filterUser !== 'ALL' && !isLogMatchUser(item, { fullName: filterUser, username: filterUser })) return false;
     if (filterService !== 'ALL' && item.department !== filterService) return false;
     if (filterStatus !== 'ALL' && item.status !== filterStatus) return false;
     return true;
@@ -13743,7 +14378,7 @@ function openAddAhtModal() {
   if (UI.formAhtInteractionCount) UI.formAhtInteractionCount.value = '1';
   if (UI.formAhtDurationMins) UI.formAhtDurationMins.value = '0';
   if (UI.formAhtDurationSecs) UI.formAhtDurationSecs.value = '220';
-  if (UI.formAhtTargetSecs) UI.formAhtTargetSecs.value = '300';
+  if (UI.formAhtTargetSecs) UI.formAhtTargetSecs.value = '0';
   if (UI.formAhtNotes) UI.formAhtNotes.value = '';
 
   updateAhtModalDurationPreview();
@@ -13771,7 +14406,7 @@ function openEditAhtModal(item) {
   if (UI.formAhtInteractionCount) UI.formAhtInteractionCount.value = item.interactionCount || '1';
   if (UI.formAhtDurationMins) UI.formAhtDurationMins.value = '0';
   if (UI.formAhtDurationSecs) UI.formAhtDurationSecs.value = actualSec;
-  if (UI.formAhtTargetSecs) UI.formAhtTargetSecs.value = item.targetSeconds || 300;
+  if (UI.formAhtTargetSecs) UI.formAhtTargetSecs.value = item.targetSeconds || 0;
   if (UI.formAhtNotes) UI.formAhtNotes.value = item.notes || '';
 
   if (UI.modalAhtTitle) UI.modalAhtTitle.textContent = 'Edit Handling Time Harian (AHT)';
@@ -13806,7 +14441,7 @@ function handleSaveAht(e) {
   const interactionCount = parseInt(UI.formAhtInteractionCount ? UI.formAhtInteractionCount.value : '1', 10) || 1;
   const mins = parseInt(UI.formAhtDurationMins ? UI.formAhtDurationMins.value : '0', 10) || 0;
   const secs = parseInt(UI.formAhtDurationSecs ? UI.formAhtDurationSecs.value : '0', 10) || 0;
-  const targetSeconds = parseInt(UI.formAhtTargetSecs ? UI.formAhtTargetSecs.value : '300', 10) || 300;
+  const targetSeconds = parseInt(UI.formAhtTargetSecs ? UI.formAhtTargetSecs.value : '0', 10) || 0;
   const notes = (UI.formAhtNotes ? UI.formAhtNotes.value : '').trim();
 
   const actualSeconds = mins * 60 + secs;
@@ -13824,10 +14459,9 @@ function handleSaveAht(e) {
     return;
   }
 
-  const deviationSeconds = actualSeconds - targetSeconds;
-  const isSlaMet = actualSeconds <= targetSeconds;
-  const deviationText = isSlaMet ? `-${Math.abs(deviationSeconds)} dtk (Cepat)` : `+${deviationSeconds} dtk (Over SLA)`;
-  const status = isSlaMet ? 'Sesuai SLA' : 'Over SLA';
+  const deviationSeconds = 0;
+  const deviationText = '';
+  const status = 'Tercatat';
   const totalDurationSeconds = actualSeconds * interactionCount;
 
   const ahtLogs = state.getAhtLogs();
@@ -13854,8 +14488,8 @@ function handleSaveAht(e) {
       };
       state.saveAhtLogs(ahtLogs);
       autoSyncAhtAction('save', { log: ahtLogs[idx] });
-      state.addLog('UPDATE_AHT', 'Ubah Handling Time', `Admin ${u.fullName} memperbarui handling time harian ${userFullName} (${date}): ${formatAhtSeconds(actualSeconds)} (${status}).`);
-      showToast('Handling Time Diperbarui', `Handling time <strong>${userFullName}</strong> (${date}) berhasil diperbarui menjadi <strong>${formatAhtSeconds(actualSeconds)}</strong> (${status}).`, 'success');
+      state.addLog('UPDATE_AHT', 'Ubah Handling Time', `Admin ${u.fullName} memperbarui handling time harian ${userFullName} (${date}): ${formatAhtSeconds(actualSeconds)}.`);
+      showToast('Handling Time Diperbarui', `Handling time <strong>${userFullName}</strong> (${date}) berhasil diperbarui menjadi <strong>${formatAhtSeconds(actualSeconds)}</strong>.`, 'success');
     }
   } else {
     // NEW
@@ -14005,11 +14639,10 @@ function exportAhtExcel() {
   }
 
   const sheet1Data = [
-    ['No', 'ID Log AHT', 'Tanggal Input', 'Nama Petugas CSO', 'Layanan CSO', 'AHT Harian (Detik)', 'Target SLA (Detik)', 'Status SLA', 'Catatan Kinerja Harian']
+    ['No', 'ID Log AHT', 'Tanggal Input', 'Nama Petugas CSO', 'Layanan CSO', 'AHT Harian (Detik)', 'Catatan Kinerja Harian']
   ];
   exportLogs.forEach((l, idx) => {
     const actSec = Number(l.actualSeconds) || 0;
-    const tgtSec = Number(l.targetSeconds) || 300;
     sheet1Data.push([
       idx + 1,
       l.id,
@@ -14017,14 +14650,12 @@ function exportAhtExcel() {
       l.userFullName,
       l.department,
       actSec,
-      tgtSec,
-      l.status || (actSec <= tgtSec ? 'Sesuai SLA' : 'Over SLA'),
       l.notes || '-'
     ]);
   });
 
   const sheet2Data = [
-    ['No', 'Nama Petugas CSO', 'Layanan CSO', 'Hari Kerja Input', 'Rata-rata AHT (Detik)', 'Target Standar SLA (Detik)', 'Status Kepatuhan SLA']
+    ['No', 'Nama Petugas CSO', 'Layanan CSO', 'Hari Kerja Input', 'Rata-rata AHT (Detik)', 'Kategori Kecepatan']
   ];
   const targetUsers = isAdmin ? users : users.filter(u => u.fullName === currentFullName);
   targetUsers.forEach((u, idx) => {
@@ -14035,7 +14666,7 @@ function exportAhtExcel() {
     if (count > 0) {
       const sum = userMonthLogs.reduce((acc, curr) => acc + (Number(curr.actualSeconds) || 0), 0);
       avg = Math.round(sum / count);
-      status = avg <= 300 ? 'Sesuai SLA (< 300s)' : 'Over SLA (> 300s)';
+      status = avg <= 240 ? 'Sangat Efisien' : 'Normal';
     }
     sheet2Data.push([
       idx + 1,
@@ -14043,7 +14674,6 @@ function exportAhtExcel() {
       u.department || 'CSO INBOUND',
       count,
       count > 0 ? avg : '-',
-      300,
       status
     ]);
   });
@@ -14056,11 +14686,11 @@ function exportAhtExcel() {
     const ws2 = XLSX.utils.aoa_to_sheet(sheet2Data);
     ws1['!cols'] = [
       { wch: 6 }, { wch: 18 }, { wch: 16 }, { wch: 24 }, { wch: 26 },
-      { wch: 20 }, { wch: 20 }, { wch: 18 }, { wch: 45 }
+      { wch: 20 }, { wch: 45 }
     ];
     ws2['!cols'] = [
       { wch: 6 }, { wch: 24 }, { wch: 26 }, { wch: 16 }, { wch: 24 },
-      { wch: 26 }, { wch: 24 }
+      { wch: 24 }
     ];
     XLSX.utils.book_append_sheet(wb, ws1, 'Log Harian AHT');
     XLSX.utils.book_append_sheet(wb, ws2, 'Rekapitulasi Bulanan');
@@ -14160,10 +14790,10 @@ function doGet(e) {
         actualSeconds: actualSec,
         totalDurationSeconds: actualSec,
         interactionCount: 1,
-        targetSeconds: 300,
-        deviationSeconds: actualSec - 300,
-        deviationText: actualSec <= 300 ? ('-' + Math.abs(actualSec - 300) + ' dtk (Cepat)') : ('+' + (actualSec - 300) + ' dtk (Over SLA)'),
-        status: String(r[5] || (actualSec <= 300 ? 'Sesuai SLA' : 'Over SLA')),
+        targetSeconds: 0,
+        deviationSeconds: 0,
+        deviationText: '',
+        status: String(r[5] || 'Tercatat'),
         notes: String(r[6] || ''),
         createdAt: String(r[7] || '')
       });
@@ -14202,7 +14832,7 @@ function doPost(e) {
           l.userFullName,
           l.department,
           parseInt(l.actualSeconds, 10) || 0,
-          l.status || 'Sesuai SLA',
+          l.status || 'Tercatat',
           l.notes || '-',
           l.createdAt || ''
         ]);
@@ -14230,7 +14860,7 @@ function doPost(e) {
         l.userFullName,
         l.department,
         parseInt(l.actualSeconds, 10) || 0,
-        l.status || 'Sesuai SLA',
+        l.status || 'Tercatat',
         l.notes || '-',
         l.createdAt || ''
       ];
@@ -14603,10 +15233,10 @@ async function pullAhtFromGoogleSheets() {
                 actualSeconds: actualSec,
                 totalDurationSeconds: actualSec,
                 interactionCount: 1,
-                targetSeconds: 300,
-                deviationSeconds: actualSec - 300,
-                deviationText: actualSec <= 300 ? ('-' + Math.abs(actualSec - 300) + ' dtk (Cepat)') : ('+' + (actualSec - 300) + ' dtk (Over SLA)'),
-                status: cols[5] || (actualSec <= 300 ? 'Sesuai SLA' : 'Over SLA'),
+                targetSeconds: 0,
+                deviationSeconds: 0,
+                deviationText: '',
+                status: cols[5] || 'Tercatat',
                 notes: cols[6] || '',
                 createdAt: cols[7] || ''
               });
@@ -14617,13 +15247,24 @@ async function pullAhtFromGoogleSheets() {
     }
 
     if (pulledRows && pulledRows.length > 0) {
-      state.saveAhtLogs(pulledRows);
+      const normalizedLogs = pulledRows.map(row => {
+        const rawUser = row.userFullName || row.username || '';
+        const uInfo = resolveSpreadsheetUser(rawUser, row.department);
+        return {
+          ...row,
+          userId: uInfo.userId || row.userId || '',
+          username: uInfo.username,
+          userFullName: uInfo.fullName,
+          department: uInfo.department || row.department || 'CSO INBOUND'
+        };
+      });
+      state.saveAhtLogs(normalizedLogs);
       const now = new Date();
       const formatted = `${String(now.getDate()).padStart(2, '0')}/${String(now.getMonth() + 1).padStart(2, '0')}/${now.getFullYear()} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
       config.lastSyncTime = formatted;
       state.saveAhtGSheetConfig(config);
       renderAhtPage();
-      showToast('Tarik Data Berhasil', `Berhasil mengambil <strong>${pulledRows.length} data AHT</strong> dari Google Spreadsheet.`, 'success');
+      showToast('Tarik Data Berhasil', `Berhasil mengambil <strong>${normalizedLogs.length} data AHT</strong> dari Google Spreadsheet.`, 'success');
     } else {
       showToast('Data Kosong / Tidak Terbaca', 'Tidak ada data AHT yang ditemukan pada Google Spreadsheet atau sheet masih kosong.', 'info');
     }
@@ -15222,13 +15863,24 @@ async function pullArtFromGoogleSheets() {
     }
 
     if (pulledRows && pulledRows.length > 0) {
-      state.saveArtLogs(pulledRows);
+      const normalizedLogs = pulledRows.map(row => {
+        const rawUser = row.userFullName || row.username || '';
+        const uInfo = resolveSpreadsheetUser(rawUser, row.department);
+        return {
+          ...row,
+          userId: uInfo.userId || row.userId || '',
+          username: uInfo.username,
+          userFullName: uInfo.fullName,
+          department: uInfo.department || row.department || 'CSO DIGILIVE CHAT - WA'
+        };
+      });
+      state.saveArtLogs(normalizedLogs);
       const now = new Date();
       const formatted = `${String(now.getDate()).padStart(2, '0')}/${String(now.getMonth() + 1).padStart(2, '0')}/${now.getFullYear()} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
       config.lastSyncTime = formatted;
       state.saveArtGSheetConfig(config);
       renderArtPage();
-      showToast('Tarik Data Berhasil', `Berhasil mengambil <strong>${pulledRows.length} data ART</strong> dari Google Spreadsheet.`, 'success');
+      showToast('Tarik Data Berhasil', `Berhasil mengambil <strong>${normalizedLogs.length} data ART</strong> dari Google Spreadsheet.`, 'success');
     } else {
       showToast('Data Kosong / Tidak Terbaca', 'Tidak ada data ART yang ditemukan pada Google Spreadsheet atau sheet masih kosong.', 'info');
     }
@@ -15425,7 +16077,7 @@ function renderArtPage() {
   });
 
   const userSummaries = filteredAgents.map(u => {
-    const userLogs = monthLogs.filter(l => l.userFullName === u.fullName);
+    const userLogs = monthLogs.filter(l => isLogMatchUser(l, u));
     const daysInput = userLogs.length;
     let totalInteractions = 0;
     let sumQueue = 0;
@@ -15512,7 +16164,7 @@ function renderArtPage() {
   if (UI.artUserSummaryBody) {
     UI.artUserSummaryBody.innerHTML = '';
     if (userSummaries.length === 0) {
-      UI.artUserSummaryBody.innerHTML = '<tr><td colspan="8" style="text-align:center; padding:24px; color:var(--gray-400);"><i class="fa-regular fa-folder-open" style="font-size:1.5rem; display:block; margin-bottom:6px; opacity:0.6;"></i>Tidak ada data response time yang sesuai dengan filter.</td></tr>';
+      UI.artUserSummaryBody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:24px; color:var(--gray-400);"><i class="fa-regular fa-folder-open" style="font-size:1.5rem; display:block; margin-bottom:6px; opacity:0.6;"></i>Tidak ada data response time yang sesuai dengan filter.</td></tr>';
     } else {
       userSummaries.forEach(summary => {
         const u = summary.user;
@@ -15547,7 +16199,6 @@ function renderArtPage() {
             </div>
           </td>
           <td><span class="badge badge-gray" style="font-size:0.75rem;"><i class="fa-solid fa-headset text-red" style="margin-right:4px;"></i>${u.department || 'CSO Layanan'}</span></td>
-          <td style="text-align: center;"><span class="font-mono font-bold" style="color:var(--gray-200);">${summary.daysInput} Hari</span></td>
           <td style="text-align: center;"><strong class="${summary.avgArtSec <= 30 ? 'text-green' : 'text-yellow'} font-mono" style="font-size:1.05rem;">${avgFormatted}</strong></td>
           <td style="text-align: center;"><span class="font-mono text-silver" style="font-size:0.85rem;">&lt; 30s</span></td>
           <td style="text-align: center;">${devHtml}</td>
@@ -15633,7 +16284,7 @@ function renderArtPage() {
     if (card4Label) card4Label.textContent = 'Agen Paling Responsif';
   } else {
     // REGULAR USER STATS
-    const myLogs = monthLogs.filter(l => l.userFullName === currentFullName);
+    const myLogs = monthLogs.filter(l => isLogMatchUser(l, currentUser));
     const myDaysInput = myLogs.length;
     let myTotalArt = 0;
     let myTotalFrt = 0;
@@ -15734,10 +16385,7 @@ function renderArtPage() {
     if (adminNames.has(String(item.userFullName || '').trim().toLowerCase())) return false;
     // RBAC: Regular user can ONLY see their own logs
     if (!isAdmin) {
-      const matchSelf = (item.userFullName === currentFullName) ||
-                        (currentUser && item.userId === currentUser.id) ||
-                        (currentUser && item.username === currentUser.username);
-      if (!matchSelf) return false;
+      if (!isLogMatchUser(item, currentUser)) return false;
     }
 
     if (searchQ) {
@@ -15749,7 +16397,7 @@ function renderArtPage() {
       if (!match) return false;
     }
 
-    if (isAdmin && filterUser !== 'ALL' && item.userFullName !== filterUser) return false;
+    if (isAdmin && filterUser !== 'ALL' && !isLogMatchUser(item, { fullName: filterUser, username: filterUser })) return false;
     if (filterService !== 'ALL' && item.department !== filterService) return false;
     if (filterStatus !== 'ALL' && item.status !== filterStatus) return false;
     return true;
@@ -18519,6 +19167,20 @@ function initEvents() {
       if (state.currentPage === 'timer') renderTimerPage();
     });
   }
+  // Overview View Mode (Table / Chart) Switcher Event Listeners
+  if (UI.btnOverviewTabTable) {
+    UI.btnOverviewTabTable.addEventListener('click', () => switchOverviewView('table'));
+  }
+  if (UI.btnOverviewTabChart) {
+    UI.btnOverviewTabChart.addEventListener('click', () => switchOverviewView('chart'));
+  }
+  if (UI.btnOverviewToggleTable) {
+    UI.btnOverviewToggleTable.addEventListener('click', () => switchOverviewView('table'));
+  }
+  if (UI.btnOverviewToggleChart) {
+    UI.btnOverviewToggleChart.addEventListener('click', () => switchOverviewView('chart'));
+  }
+
   // Overview Multi-Metric Table Event Listeners (CA, Tiket, ART)
   if (UI.btnRefreshOverviewCa) {
     UI.btnRefreshOverviewCa.addEventListener('click', () => {
@@ -24409,6 +25071,10 @@ if (typeof window !== 'undefined') {
   window.renderArtPage = renderArtPage;
   window.handleSaveArt = handleSaveArt;
   window.exportArtExcel = exportArtExcel;
+  window.switchOverviewView = switchOverviewView;
+  if (typeof window !== 'undefined') {
+  window.renderOverviewCharts = renderOverviewCharts;
+}
   window.saveUserControl = saveUserControl;
   window.getUserControlValue = getUserControlValue;
   window.getUserControls = getUserControls;
