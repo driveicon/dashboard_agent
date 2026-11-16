@@ -852,6 +852,49 @@ class AppState {
     this.safeSetStorage('vortex_finding_gsheet_config', cfg);
   }
 
+  getAktivitasData() {
+    const raw = this.safeGetStorage('vortex_aktivitas_data', null);
+    if (raw && typeof raw === 'object' && (Array.isArray(raw.onlineRows) || (raw.byMonth && typeof raw.byMonth === 'object'))) {
+      if (!raw.byMonth || typeof raw.byMonth !== 'object') {
+        raw.byMonth = {
+          '2026-10': {
+            onlineRows: Array.isArray(raw.onlineRows) ? raw.onlineRows : [],
+            auxRows: Array.isArray(raw.auxRows) ? raw.auxRows : []
+          }
+        };
+      }
+      return raw;
+    }
+    const defaults = buildDefaultAktivitasData();
+    this.safeSetStorage('vortex_aktivitas_data', defaults);
+    return defaults;
+  }
+
+  saveAktivitasData(data) {
+    this.safeSetStorage('vortex_aktivitas_data', data);
+  }
+
+  getAktivitasGSheetConfig() {
+    const defaults = {
+      webAppUrl: '',
+      sheetId: '',
+      sheetName: 'Aktivitas_Data',
+      autoSync: true,
+      lastSyncTime: null,
+      lastSyncStatus: 'disconnected'
+    };
+    try {
+      const parsed = this.safeGetStorage('vortex_aktivitas_gsheet_config', null);
+      return parsed ? { ...defaults, ...parsed } : defaults;
+    } catch (e) {
+      return defaults;
+    }
+  }
+
+  saveAktivitasGSheetConfig(cfg) {
+    this.safeSetStorage('vortex_aktivitas_gsheet_config', cfg);
+  }
+
   getQuizQuestions() {
     const rawQuestions = this.safeGetStorage('vortex_quiz_questions', []);
     if (!Array.isArray(rawQuestions)) return [];
@@ -1483,6 +1526,10 @@ const PAGE_CONTROL_DEFAULTS = {
     filterFindingLevel: 'ALL',
     filterFindingStatus: 'ALL'
   },
+  aktivitas: {
+    filterAktivitasMonth: '2026-10',
+    searchAktivitasInput: ''
+  },
   'data-management': {
     searchInput: '',
     filterCategory: 'ALL',
@@ -1605,6 +1652,7 @@ function getAvailableMonthList() {
 
 const DYNAMIC_MONTH_FILTER_CONFIGS = [
   { id: 'filterOverviewMonth', pageKey: 'overview', defaultVal: '2026-09' },
+  { id: 'filterAktivitasMonth', pageKey: 'aktivitas', defaultVal: '2026-10' },
   { id: 'filterPaMonth', pageKey: 'update-pa', defaultVal: '2026-09' },
   { id: 'filterCaMonth', pageKey: 'ca', defaultVal: '2026-10' },
   { id: 'filterTiketMonth', pageKey: 'tiket', defaultVal: '2026-10' },
@@ -1959,6 +2007,7 @@ const UI = {
   // Pages
   pages: {
     overview: document.getElementById('pageOverview'),
+    aktivitas: document.getElementById('pageAktivitas'),
     'update-pa': document.getElementById('pageUpdatePa'),
     ca: document.getElementById('pageCa'),
     tiket: document.getElementById('pageTiket'),
@@ -1975,6 +2024,71 @@ const UI = {
   },
 
   // Update PA Elements
+  navAktivitas: document.getElementById('navAktivitas'),
+  pageAktivitas: document.getElementById('pageAktivitas'),
+  filterAktivitasMonth: document.getElementById('filterAktivitasMonth'),
+  aktivitasRoleBadge: document.getElementById('aktivitasRoleBadge'),
+  btnRefreshAktivitas: document.getElementById('btnRefreshAktivitas'),
+  btnExportAktivitasExcel: document.getElementById('btnExportAktivitasExcel'),
+  btnOpenImportAktivitasModal: document.getElementById('btnOpenImportAktivitasModal'),
+  btnResetAktivitasDefault: document.getElementById('btnResetAktivitasDefault'),
+  aktivitasPermissionBanner: document.getElementById('aktivitasPermissionBanner'),
+  aktivitasBannerIcon: document.getElementById('aktivitasBannerIcon'),
+  aktivitasBannerTitle: document.getElementById('aktivitasBannerTitle'),
+  aktivitasBannerDesc: document.getElementById('aktivitasBannerDesc'),
+  aktivitasBannerPill: document.getElementById('aktivitasBannerPill'),
+  aktivitasGSheetSyncBar: document.getElementById('aktivitasGSheetSyncBar'),
+  aktivitasGSheetStatusBadge: document.getElementById('aktivitasGSheetStatusBadge'),
+  aktivitasGSheetStatusInfo: document.getElementById('aktivitasGSheetStatusInfo'),
+  btnAktivitasGSheetOpenLink: document.getElementById('btnAktivitasGSheetOpenLink'),
+  btnAktivitasGSheetPull: document.getElementById('btnAktivitasGSheetPull'),
+  btnAktivitasGSheetPush: document.getElementById('btnAktivitasGSheetPush'),
+  btnAktivitasGSheetConfig: document.getElementById('btnAktivitasGSheetConfig'),
+  modalAktivitasGoogleSheets: document.getElementById('modalAktivitasGoogleSheets'),
+  btnCloseAktivitasGSheetModal: document.getElementById('btnCloseAktivitasGSheetModal'),
+  btnCancelAktivitasGSheetModal: document.getElementById('btnCancelAktivitasGSheetModal'),
+  tabBtnAktivitasGSheetConfig: document.getElementById('tabBtnAktivitasGSheetConfig'),
+  tabBtnAktivitasGSheetGuide: document.getElementById('tabBtnAktivitasGSheetGuide'),
+  tabContentAktivitasGSheetConfig: document.getElementById('tabContentAktivitasGSheetConfig'),
+  tabContentAktivitasGSheetGuide: document.getElementById('tabContentAktivitasGSheetGuide'),
+  inputAktivitasGSheetWebAppUrl: document.getElementById('inputAktivitasGSheetWebAppUrl'),
+  inputAktivitasGSheetUrl: document.getElementById('inputAktivitasGSheetUrl'),
+  inputAktivitasGSheetTabName: document.getElementById('inputAktivitasGSheetTabName'),
+  checkAktivitasGSheetAutoSync: document.getElementById('checkAktivitasGSheetAutoSync'),
+  labelAktivitasGSheetModalStatus: document.getElementById('labelAktivitasGSheetModalStatus'),
+  labelAktivitasGSheetModalLastSync: document.getElementById('labelAktivitasGSheetModalLastSync'),
+  labelAktivitasGSheetModalTotalCount: document.getElementById('labelAktivitasGSheetModalTotalCount'),
+  btnAktivitasGSheetTest: document.getElementById('btnAktivitasGSheetTest'),
+  btnAktivitasGSheetModalOpenLink: document.getElementById('btnAktivitasGSheetModalOpenLink'),
+  btnAktivitasGSheetModalPull: document.getElementById('btnAktivitasGSheetModalPull'),
+  btnAktivitasGSheetModalPush: document.getElementById('btnAktivitasGSheetModalPush'),
+  btnAktivitasGSheetSaveConfig: document.getElementById('btnAktivitasGSheetSaveConfig'),
+  btnCopyAktivitasAppsScript: document.getElementById('btnCopyAktivitasAppsScript'),
+  codeAktivitasAppsScript: document.getElementById('codeAktivitasAppsScript'),
+  searchAktivitasInput: document.getElementById('searchAktivitasInput'),
+  btnClearSearchAktivitas: document.getElementById('btnClearSearchAktivitas'),
+  btnAktivitasTabAll: document.getElementById('btnAktivitasTabAll'),
+  btnAktivitasTabOnline: document.getElementById('btnAktivitasTabOnline'),
+  btnAktivitasTabAux: document.getElementById('btnAktivitasTabAux'),
+  sectionAktivitasOnline: document.getElementById('sectionAktivitasOnline'),
+  sectionAktivitasAux: document.getElementById('sectionAktivitasAux'),
+  badgeAktivitasOnlineCount: document.getElementById('badgeAktivitasOnlineCount'),
+  badgeAktivitasAuxCount: document.getElementById('badgeAktivitasAuxCount'),
+  aktivitasOnlineAdminActions: document.getElementById('aktivitasOnlineAdminActions'),
+  aktivitasAuxAdminActions: document.getElementById('aktivitasAuxAdminActions'),
+  btnAddAktivitasOnlineRow: document.getElementById('btnAddAktivitasOnlineRow'),
+  btnAddAktivitasAuxRow: document.getElementById('btnAddAktivitasAuxRow'),
+  tableAktivitasOnline: document.getElementById('tableAktivitasOnline'),
+  theadAktivitasOnline: document.getElementById('theadAktivitasOnline'),
+  tbodyAktivitasOnline: document.getElementById('tbodyAktivitasOnline'),
+  tableAktivitasAux: document.getElementById('tableAktivitasAux'),
+  theadAktivitasAux: document.getElementById('theadAktivitasAux'),
+  tbodyAktivitasAux: document.getElementById('tbodyAktivitasAux'),
+  modalImportAktivitas: document.getElementById('modalImportAktivitas'),
+  btnCloseImportAktivitasModal: document.getElementById('btnCloseImportAktivitasModal'),
+  btnCancelImportAktivitasModal: document.getElementById('btnCancelImportAktivitasModal'),
+  inputImportAktivitasCsv: document.getElementById('inputImportAktivitasCsv'),
+  btnProcessImportAktivitas: document.getElementById('btnProcessImportAktivitas'),
   navUpdatePa: document.getElementById('navUpdatePa'),
   pageUpdatePa: document.getElementById('pageUpdatePa'),
   btnOpenAddPaModal: document.getElementById('btnOpenAddPaModal'),
@@ -2538,6 +2652,7 @@ const UI = {
   modalFindingTitle: document.getElementById('modalFindingTitle'),
   formFinding: document.getElementById('formFinding'),
   formFindingId: document.getElementById('formFindingId'),
+  formFindingInputId: document.getElementById('formFindingInputId'),
   formFindingDate: document.getElementById('formFindingDate'),
   formFindingUser: document.getElementById('formFindingUser'),
   formFindingDept: document.getElementById('formFindingDept'),
@@ -4006,6 +4121,7 @@ function navigateToPage(pageId, save = true) {
   // Update breadcrumb
   const pageTitles = {
     overview: 'Ringkasan & Pusat Kendali',
+    aktivitas: 'Aktivitas (Durasi Online & AUX)',
     'update-pa': 'Update PA (Productivity & Activity)',
     ca: 'Evaluasi Penilaian Mutu (CA)',
     tiket: 'Manajemen & Pelacakan Tiket',
@@ -4043,6 +4159,8 @@ function navigateToPage(pageId, save = true) {
   // Trigger page-specific renders
   if (pageId === 'overview') {
     renderOverviewPage();
+  } else if (pageId === 'aktivitas') {
+    renderAktivitasPage();
   } else if (pageId === 'update-pa') {
     renderUpdatePaPage();
   } else if (pageId === 'ca') {
@@ -17785,6 +17903,7 @@ function openAddFindingModal() {
   if (UI.modalFindingTitle) UI.modalFindingTitle.textContent = 'Tambah Catatan';
   if (UI.btnSubmitFindingText) UI.btnSubmitFindingText.textContent = 'Simpan Catatan';
   if (UI.formFindingId) UI.formFindingId.value = '';
+  if (UI.formFindingInputId) UI.formFindingInputId.value = '';
 
   if (UI.formFinding) UI.formFinding.reset();
 
@@ -17838,6 +17957,7 @@ window.openEditFindingModal = function(id) {
   if (UI.modalFindingTitle) UI.modalFindingTitle.textContent = 'Edit Catatan';
   if (UI.btnSubmitFindingText) UI.btnSubmitFindingText.textContent = 'Perbarui Catatan';
   if (UI.formFindingId) UI.formFindingId.value = item.id;
+  if (UI.formFindingInputId) UI.formFindingInputId.value = item.id || '';
 
   // Populate dropdown Petugas CSO dari seluruh data di Manajemen Team (kecuali admin)
   const allTeamUsers = (state.getUsers() || []).filter(usr => usr && usr.role !== 'admin');
@@ -17997,6 +18117,7 @@ function handleSaveFinding(e) {
   if (!u) return;
 
   const editId = (UI.formFindingId ? UI.formFindingId.value.trim() : '');
+  const customId = (UI.formFindingInputId ? UI.formFindingInputId.value.trim() : '');
   const userFullName = (UI.formFindingUser ? UI.formFindingUser.value.trim() : '') || u.fullName;
   const department = (UI.formFindingDept ? UI.formFindingDept.value : 'CSO INBOUND');
   const date = (UI.formFindingDate && UI.formFindingDate.value) ? UI.formFindingDate.value : new Date().toISOString().slice(0, 10);
@@ -18030,8 +18151,10 @@ function handleSaveFinding(e) {
       showToast('Data Tidak Ditemukan', `Temuan audit ${editId} tidak ditemukan untuk diperbarui.`, 'error');
       return;
     }
+    const finalId = customId || findings[targetIdx].id;
     findings[targetIdx] = {
       ...findings[targetIdx],
+      id: finalId,
       userId: targetUserId || findings[targetIdx].userId || '',
       username: targetUsername || findings[targetIdx].username || '',
       date,
@@ -18045,15 +18168,19 @@ function handleSaveFinding(e) {
       actionPlan,
       status
     };
+    if (state.selectedFindingIds && editId !== finalId && state.selectedFindingIds.has(editId)) {
+      state.selectedFindingIds.delete(editId);
+      state.selectedFindingIds.add(finalId);
+    }
     state.saveFindings(findings);
     autoSyncFindingAction('save', { finding: findings[targetIdx] });
-    state.addLog('UPDATE_FINDING', 'Perbarui Catatan QA', `${u.fullName} (${u.role.toUpperCase()}) memperbarui catatan temuan audit QA [${editId}] untuk ${userFullName} (${deviationLevel}).`);
-    showToast('Catatan QA Diperbarui', `Catatan temuan <strong>${editId}</strong> berhasil diperbarui.`, 'success');
+    state.addLog('UPDATE_FINDING', 'Perbarui Catatan QA', `${u.fullName} (${u.role.toUpperCase()}) memperbarui catatan temuan audit QA [${finalId}] untuk ${userFullName} (${deviationLevel}).`);
+    showToast('Catatan QA Diperbarui', `Catatan temuan <strong>${finalId}</strong> berhasil diperbarui.`, 'success');
   } else {
     // Mode Tambah: catat temuan baru
     const todayStr = date;
     const randNum = String(Math.floor(Math.random() * 900) + 100);
-    const newId = `FND-${todayStr.slice(0,4)}-${randNum}`;
+    const newId = customId || `FND-${todayStr.slice(0,4)}-${randNum}`;
 
     const newEntry = {
       id: newId,
@@ -25041,43 +25168,1761 @@ function initQuizBattle() {
   if (btnClearHist) btnClearHist.addEventListener('click', clearMyQuizHistory);
 }
 
-// Expose Quiz functions & state globally for cross-module & realtime sync
-window.quizState = quizState;
-window.renderQuizPage = renderQuizPage;
-window.renderQuizLeaderboard = renderQuizLeaderboard;
-window.renderQuizAdminQuestions = renderQuizAdminQuestions;
-window.renderQuizEmptyState = renderQuizEmptyState;
-window.syncQuizArenaWithCurrentBank = syncQuizArenaWithCurrentBank;
-window.purgeQuizQuestionFromAllSessions = purgeQuizQuestionFromAllSessions;
-window.startQuizBattle = startQuizBattle;
-window.switchQuizTab = switchQuizTab;
-if (typeof window !== 'undefined') {
-  window.deleteQuizHistoryRecord = deleteQuizHistoryRecord;
-  window.clearAllTeamQuizHistory = clearAllTeamQuizHistory;
-  window.clearMyQuizHistory = clearMyQuizHistory;
-  window.renderCaPage = renderCaPage;
-  window.handleSaveCa = handleSaveCa;
-  window.exportCaExcel = exportCaExcel;
-  window.renderTiketPage = renderTiketPage;
-  window.handleSaveTiket = handleSaveTiket;
-  window.exportTiketExcel = exportTiketExcel;
-  window.toggleSelectAllTiket = toggleSelectAllTiket;
-  window.deselectAllTiket = deselectAllTiket;
-  window.promptDeleteSelectedTiket = promptDeleteSelectedTiket;
-  window.promptDeleteAllTiketMonth = promptDeleteAllTiketMonth;
-  window.renderAhtPage = renderAhtPage;
-  window.handleSaveAht = handleSaveAht;
-  window.exportAhtExcel = exportAhtExcel;
-  window.renderArtPage = renderArtPage;
-  window.handleSaveArt = handleSaveArt;
-  window.exportArtExcel = exportArtExcel;
-  window.switchOverviewView = switchOverviewView;
+  // Expose Quiz functions & state globally for cross-module & realtime sync
+  window.quizState = quizState;
+  window.renderQuizPage = renderQuizPage;
+  window.renderQuizLeaderboard = renderQuizLeaderboard;
+  window.renderQuizAdminQuestions = renderQuizAdminQuestions;
+  window.renderQuizEmptyState = renderQuizEmptyState;
+  window.syncQuizArenaWithCurrentBank = syncQuizArenaWithCurrentBank;
+  window.purgeQuizQuestionFromAllSessions = purgeQuizQuestionFromAllSessions;
+  window.startQuizBattle = startQuizBattle;
+  window.switchQuizTab = switchQuizTab;
   if (typeof window !== 'undefined') {
-  window.renderOverviewCharts = renderOverviewCharts;
+    window.deleteQuizHistoryRecord = deleteQuizHistoryRecord;
+    window.clearAllTeamQuizHistory = clearAllTeamQuizHistory;
+    window.clearMyQuizHistory = clearMyQuizHistory;
+    window.renderCaPage = renderCaPage;
+    window.handleSaveCa = handleSaveCa;
+    window.exportCaExcel = exportCaExcel;
+    window.renderTiketPage = renderTiketPage;
+    window.handleSaveTiket = handleSaveTiket;
+    window.exportTiketExcel = exportTiketExcel;
+    window.toggleSelectAllTiket = toggleSelectAllTiket;
+    window.deselectAllTiket = deselectAllTiket;
+    window.promptDeleteSelectedTiket = promptDeleteSelectedTiket;
+    window.promptDeleteAllTiketMonth = promptDeleteAllTiketMonth;
+    window.renderAhtPage = renderAhtPage;
+    window.handleSaveAht = handleSaveAht;
+    window.exportAhtExcel = exportAhtExcel;
+    window.renderArtPage = renderArtPage;
+    window.handleSaveArt = handleSaveArt;
+    window.exportArtExcel = exportArtExcel;
+    window.switchOverviewView = switchOverviewView;
+    window.renderOverviewCharts = renderOverviewCharts;
+    window.renderAktivitasPage = renderAktivitasPage;
+    window.exportAktivitasExcel = exportAktivitasExcel;
+    window.deleteAktivitasRow = deleteAktivitasRow;
+    window.saveUserControl = saveUserControl;
+    window.getUserControlValue = getUserControlValue;
+    window.getUserControls = getUserControls;
+  }
+
+// ==========================================
+// 15.5 AKTIVITAS MODULE (DURASI ONLINE & AUX SPREADSHEET)
+// ==========================================
+
+var aktivitasActiveTab = 'ALL'; // 'ALL' | 'ONLINE' | 'AUX'
+var aktivitasAutoSyncTimer = null;
+var aktivitasClipboardRichHtml = '';
+
+var RAW_DEFAULT_AKTIVITAS_ONLINE = [
+  ['ANGGI AYU SANGHIKA', 'L', '25862', '25611', 'L', '25545', '25679', '25903', '25927', 'CUTI'],
+  ['AVINA AINUN ZAHRA', 'L', '25740', '25716', 'L', '26498', '25485', '25506', 'L', '26081'],
+  ['AYU YUDHA PRATIWI', '26211', 'L', '26277', '26231', 'L', '26187', '26196', '26174', '25430'],
+  ['DYAH AYU MILLENIA', 'CUTI', '25814', '25678', '25943', 'L', '25729', '25894', '25800', '25732'],
+  ['FENI ELKA SOFIANI', 'L', '14150', 'CTSK', 'L', '28134', '26307', '25707', '26639', '25690'],
+  ['HAFSA MUFIDA', 'L', '26173', '25459', '25830', 'L', '25752', '25662', 'L', '26014'],
+  ['INTAN MARITA', 'L', '25730', '25336', 'L', '26546', '25777', '26027', '26584', 'L'],
+  ['MAGFIROTUL DEWI AMALIYAH', '25615', '25704', 'L', '25463', '26228', '25884', '26540', 'L', '25596'],
+  ['MEI RIHARDINI', 'L', '26584', '25936', 'L', '25904', '25645', '26428', '26324', 'L'],
+  ['SEKAR AYU NASTITI', 'L', 'L', '25561', '26040', 'L', '25274', '25332', '25564', '25333'],
+  ['TITIK HARDIYANTI RUKMANA', 'L', '27424', '27187', '26922', 'L', '27399', '25948', 'L', '25602'],
+  ['TSALTSA NUR SABILLA SARI', '25372', 'L', 'L', '25626', '25370', '25655', '25207', 'L', 'CUTI'],
+  ['SUGENG RIYADI', '26053', '26015', 'L', '26206', '25916', '26195', 'L', '25964', '25883'],
+  ['WAHYU REZA KURNIYAWAN', '25363', 'L', '25382', '25506', 'L', '25200', '25200', 'L', '25306']
+];
+
+var RAW_DEFAULT_AKTIVITAS_AUX = [
+  ['ANGGI AYU SANGHIKA', 'L', '4602', '4488', 'L', '4921', '4878', '4930', '4920', 'CUTI', '4936'],
+  ['AVINA AINUN ZAHRA', 'L', '5015', '4924', 'L', '5021', '4994', '4921', 'L', '4930', '5022'],
+  ['AYU YUDHA PRATIWI', '4473', 'L', '4459', '4460', 'L', '4485', '4583', '4600', '4177', 'L'],
+  ['DYAH AYU MILLENIA', 'CUTI', '4879', '4919', '4735', 'L', '4924', '4767', '4829', '4936', 'L'],
+  ['FENI ELKA SOFIANI', 'L', '888', 'CTSK', 'L', '3240', '4829', '4978', '4465', '5400', 'L'],
+  ['HAFSA MUFIDA', 'L', '4820', '5400', '4865', 'L', '4925', '5102', 'L', '4773', '4877'],
+  ['INTAN MARITA', 'L', '5154', '5545', 'L', '4476', '3169', '4727', '4333', 'L', '5100'],
+  ['MAGFIROTUL DEWI AMALIYAH', '5018', '4903', 'L', '5099', '4847', '4943', '5028', 'L', '5033', '4993'],
+  ['MEI RIHARDINI', 'L', '4837', '4927', 'L', '5094', '3581', '5259', '3581', 'L', '4763'],
+  ['SEKAR AYU NASTITI', 'L', 'L', '5122', '5238', 'L', '5283', '5111', '5172', '5162', 'L'],
+  ['TITIK HARDIYANTI RUKMANA', 'L', '4553', '4472', '4896', 'L', '4913', '5267', 'L', '4890', '5052'],
+  ['TSALTSA NUR SABILLA SARI', '5021', 'L', 'L', '4995', '5048', '5020', '5130', 'L', 'CUTI', '5029'],
+  ['SUGENG RIYADI', '5201', '5179', 'L', '4915', '4600', '4654', 'L', '4829', '4961', '4891'],
+  ['WAHYU REZA KURNIYAWAN', '5145', 'L', '5291', '5005', 'L', '5205', '5180', 'L', '5146', '5212']
+];
+
+var AKTIVITAS_APPS_SCRIPT_TEMPLATE = `/**
+ * GOOGLE APPS SCRIPT - SINKRONISASI 2 ARAH MENU AKTIVITAS (DURASI ONLINE & AUX)
+ * Menyertakan Nilai Tampilan (DisplayValues), Font, Warna Font & Warna Blok Persis Spreadsheet
+ */
+const SHEET_NAME = 'Aktivitas_Data';
+
+function doGet(e) {
+  const action = (e && e.parameter && e.parameter.action) || 'get_all';
+  if (action === 'ping') {
+    return jsonResponse({ success: true, message: 'Koneksi Google Apps Script Aktivitas Aktif!' });
+  }
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const reqSheet = (e && e.parameter && e.parameter.sheet) || SHEET_NAME;
+  let sheet = ss.getSheetByName(reqSheet) || ss.getSheetByName(SHEET_NAME) || ss.getSheets()[0];
+  if (!sheet) {
+    return jsonResponse({ success: true, csvText: '' });
+  }
+  const range = sheet.getDataRange();
+  const values = range.getValues();
+  const displayValues = range.getDisplayValues();
+  const backgrounds = range.getBackgrounds();
+  const fontColors = range.getFontColors();
+  const fontFamilies = range.getFontFamilies();
+  const fontWeights = range.getFontWeights();
+  const fontStyles = range.getFontStyles();
+  const fontSizes = range.getFontSizes();
+  const alignments = range.getHorizontalAlignments();
+  const csvLines = displayValues.map(row => row.map(c => String(c ?? '')).join('\\t')).join('\\n');
+  return jsonResponse({
+    success: true,
+    csvText: csvLines,
+    rows: values,
+    displayValues: displayValues,
+    backgrounds: backgrounds,
+    fontColors: fontColors,
+    fontFamilies: fontFamilies,
+    fontWeights: fontWeights,
+    fontStyles: fontStyles,
+    fontSizes: fontSizes,
+    alignments: alignments
+  });
 }
-  window.saveUserControl = saveUserControl;
-  window.getUserControlValue = getUserControlValue;
-  window.getUserControls = getUserControls;
+
+function doPost(e) {
+  try {
+    const body = JSON.parse(e.postData.contents);
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const targetName = body.sheetName || SHEET_NAME;
+    let sheet = ss.getSheetByName(targetName);
+    if (!sheet) {
+      sheet = ss.insertSheet(targetName);
+    }
+    if (Array.isArray(body.sheetRows)) {
+      sheet.clearContents();
+      const maxCols = body.sheetRows.reduce((m, r) => Math.max(m, r.length), 1);
+      const normalized = body.sheetRows.map(r => {
+        const copy = r.slice();
+        while (copy.length < maxCols) copy.push('');
+        return copy;
+      });
+      if (normalized.length > 0) {
+        sheet.getRange(1, 1, normalized.length, maxCols).setValues(normalized);
+      }
+    }
+    return jsonResponse({ success: true, updatedRows: (body.sheetRows || []).length });
+  } catch (err) {
+    return jsonResponse({ success: false, error: err.toString() });
+  }
+}
+
+function jsonResponse(obj) {
+  return ContentService.createTextOutput(JSON.stringify(obj))
+    .setMimeType(ContentService.MimeType.JSON);
+}`;
+
+function formatAktivitasPercent(val) {
+  if (val === null || val === undefined || val === '') return '0%';
+  const str = String(val).trim();
+  if (str.endsWith('%')) return str;
+  const num = parseFloat(str.replace(',', '.'));
+  if (isNaN(num)) return str;
+  if (num === 0) return '0%';
+  const pct = (num > 0 && num <= 1) ? (num * 100) : num;
+  return `${Math.round(pct)}%`;
+}
+
+function styleObjToInlineCss(st) {
+  if (!st || typeof st !== 'object') return '';
+  const parts = [];
+  if (st.bg && st.bg !== 'transparent' && st.bg !== 'none') parts.push(`background-color:${st.bg}`);
+  if (st.fg) parts.push(`color:${st.fg}`);
+  if (st.ff) parts.push(`font-family:${st.ff}, Arial, sans-serif`);
+  if (st.fw) parts.push(`font-weight:${st.fw}`);
+  if (st.fi) parts.push(`font-style:${st.fi}`);
+  if (st.fs) parts.push(`font-size:calc(${st.fs}pt * var(--content-font-scale, 1))`);
+  if (st.align) parts.push(`text-align:${st.align}`);
+  return parts.length > 0 ? parts.join(';') + ';' : '';
+}
+
+function recalcAktivitasOnlineRow(row) {
+  if (!Array.isArray(row.days)) row.days = new Array(31).fill('');
+  while (row.days.length < 31) row.days.push('');
+  let total = 0;
+  let hadir = 0;
+  let cuti = 0;
+  let sakit = 0;
+
+  for (let i = 0; i < 31; i++) {
+    const raw = String(row.days[i] ?? '').trim();
+    if (!raw) continue;
+    const upper = raw.toUpperCase();
+    if (upper === 'CUTI') {
+      cuti++;
+    } else if (upper === 'SAKIT') {
+      sakit++;
+    } else {
+      const cleaned = raw.replace(/\./g, '').replace(/,/g, '');
+      const num = Number(cleaned);
+      if (!isNaN(num) && cleaned !== '') {
+        total += num;
+        hadir++;
+      }
+    }
+  }
+
+  row.total = total;
+  row.totalActual = total;
+  row.hadir = hadir;
+  row.persentaseHadir = hadir > 0 ? `${Math.round((hadir / 22) * 100)}%` : '0%';
+  row.cuti = cuti;
+  row.hadirCuti = hadir + cuti;
+  row.sakit = sakit;
+  row.persen = hadir > 0 ? '100%' : '0%';
+  return row;
+}
+
+function recalcAktivitasAuxRow(row) {
+  if (!Array.isArray(row.days)) row.days = new Array(31).fill('');
+  while (row.days.length < 31) row.days.push('');
+  let total = 0;
+  let hadir = 0;
+  let under = 0;
+  let over = 0;
+
+  for (let i = 0; i < 31; i++) {
+    const raw = String(row.days[i] ?? '').trim();
+    if (!raw) continue;
+    const cleaned = raw.replace(/\./g, '').replace(/,/g, '');
+    const num = Number(cleaned);
+    if (!isNaN(num) && cleaned !== '') {
+      total += num;
+      hadir++;
+      if (num < 5400) under++;
+      else if (num > 5400) over++;
+    }
+  }
+
+  row.total = total;
+  row.totalOmni = total;
+  row.hadir = hadir;
+  row.penggunaanHarian = hadir > 0 ? Number((total / hadir).toFixed(6)) : 0;
+  row.jmlUnder = under;
+  row.jmlOver = over;
+  row.persen = hadir > 0 ? `${Math.round(((hadir - over) / hadir) * 100)}%` : '0%';
+  return row;
+}
+
+function buildSeedRowsFromDefault() {
+  const onlineRows = RAW_DEFAULT_AKTIVITAS_ONLINE.map((arr, idx) => {
+    const days = new Array(31).fill('');
+    for (let d = 1; d < arr.length && d <= 31; d++) {
+      days[d - 1] = arr[d] || '';
+    }
+    return recalcAktivitasOnlineRow({
+      id: `akt_online_${idx + 1}`,
+      name: arr[0],
+      days
+    });
+  });
+
+  const auxRows = RAW_DEFAULT_AKTIVITAS_AUX.map((arr, idx) => {
+    const days = new Array(31).fill('');
+    for (let d = 1; d < arr.length && d <= 31; d++) {
+      days[d - 1] = arr[d] || '';
+    }
+    return recalcAktivitasAuxRow({
+      id: `akt_aux_${idx + 1}`,
+      name: arr[0],
+      days
+    });
+  });
+
+  return { onlineRows, auxRows };
+}
+
+function buildDefaultAktivitasData() {
+  const seed = buildSeedRowsFromDefault();
+  return {
+    onlineRows: seed.onlineRows,
+    auxRows: seed.auxRows,
+    byMonth: {
+      'ALL': JSON.parse(JSON.stringify(seed)),
+      '2026-10': JSON.parse(JSON.stringify(seed)),
+      '2026-09': JSON.parse(JSON.stringify(seed))
+    },
+    updatedAt: new Date().toISOString()
+  };
+}
+
+function isAktivitasRowMatchUser(row, user) {
+  if (!row || !user) return false;
+  if (row.userId && user.id && String(row.userId).trim() === String(user.id).trim()) return true;
+  const rName = String(row.name || row.userFullName || '').trim().toLowerCase();
+  const rUser = String(row.username || '').trim().toLowerCase();
+  const uName = String(user.fullName || '').trim().toLowerCase();
+  const uUser = String(user.username || '').trim().toLowerCase();
+  if (rName && uName && rName === uName) return true;
+  if (rUser && uUser && rUser === uUser) return true;
+  if (rName && uUser && rName === uUser) return true;
+
+  const clean = s => s.replace(/,\s*[a-z\.\s]+$/i, '').replace(/[^a-z0-9]/g, '');
+  const cRow = clean(rName);
+  const cUsr = clean(uName);
+  if (cRow && cUsr && cRow === cUsr) return true;
+  return false;
+}
+
+function getSelectedAktivitasMonth() {
+  return (UI && UI.filterAktivitasMonth && UI.filterAktivitasMonth.value) ? UI.filterAktivitasMonth.value : '2026-10';
+}
+
+/**
+ * Mengambil dan menyinkronkan data Aktivitas pada bulan terpilih.
+ * Mempertahankan seluruh baris, urutan, format nama, font, warna font, dan warna blok dari spreadsheet,
+ * sekaligus menghubungkannya dengan data User Terdaftar (Manajemen Team).
+ */
+function getSyncedAktivitasMonthRows(monthKey) {
+  const data = state.getAktivitasData();
+  if (!data.byMonth || typeof data.byMonth !== 'object') {
+    data.byMonth = {};
+  }
+
+  if (!data.byMonth[monthKey]) {
+    const seed = buildSeedRowsFromDefault();
+    const baseOnline = (Array.isArray(data.onlineRows) && data.onlineRows.length > 0 && data.onlineRows.length >= 14)
+      ? JSON.parse(JSON.stringify(data.onlineRows))
+      : seed.onlineRows;
+    const baseAux = (Array.isArray(data.auxRows) && data.auxRows.length > 0 && data.auxRows.length >= 14)
+      ? JSON.parse(JSON.stringify(data.auxRows))
+      : seed.auxRows;
+    data.byMonth[monthKey] = {
+      onlineRows: baseOnline,
+      auxRows: baseAux
+    };
+  }
+
+  const monthBucket = data.byMonth[monthKey];
+  if (!Array.isArray(monthBucket.onlineRows)) monthBucket.onlineRows = [];
+  if (!Array.isArray(monthBucket.auxRows)) monthBucket.auxRows = [];
+
+  // Jika bulan ini kehilangan sebagian dari 14 baris default spreadsheet karena versi lama, lengkapi kembali sesuai urutan spreadsheet
+  const defaultSeed = buildSeedRowsFromDefault();
+  if (monthBucket.onlineRows.length < defaultSeed.onlineRows.length && !monthBucket._hasCustomPull) {
+    defaultSeed.onlineRows.forEach((seedRow, sIdx) => {
+      const exists = monthBucket.onlineRows.some(r => String(r.name || '').trim().toLowerCase() === seedRow.name.toLowerCase());
+      if (!exists) {
+        monthBucket.onlineRows.splice(sIdx, 0, seedRow);
+      }
+    });
+  }
+  if (monthBucket.auxRows.length < defaultSeed.auxRows.length && !monthBucket._hasCustomPull) {
+    defaultSeed.auxRows.forEach((seedRow, sIdx) => {
+      const exists = monthBucket.auxRows.some(r => String(r.name || '').trim().toLowerCase() === seedRow.name.toLowerCase());
+      if (!exists) {
+        monthBucket.auxRows.splice(sIdx, 0, seedRow);
+      }
+    });
+  }
+
+  const allUsers = (state && typeof state.getUsers === 'function') ? (state.getUsers() || []) : [];
+  const registeredUsers = allUsers.filter(u => u && u.role !== 'admin');
+
+  let modified = false;
+
+  // Normalisasi format % pada setiap baris yang ada dan tautkan dengan user terdaftar jika cocok
+  monthBucket.onlineRows.forEach(row => {
+    const formattedPctHadir = formatAktivitasPercent(row.persentaseHadir);
+    const formattedPersen = formatAktivitasPercent(row.persen);
+    if (row.persentaseHadir !== formattedPctHadir) {
+      row.persentaseHadir = formattedPctHadir;
+      modified = true;
+    }
+    if (row.persen !== formattedPersen) {
+      row.persen = formattedPersen;
+      modified = true;
+    }
+    const matchedUser = registeredUsers.find(u => isAktivitasRowMatchUser(row, u));
+    if (matchedUser && !row.userId) {
+      row.userId = matchedUser.id || '';
+      row.username = matchedUser.username || '';
+    }
+  });
+
+  monthBucket.auxRows.forEach(row => {
+    const formattedPersen = formatAktivitasPercent(row.persen);
+    if (row.persen !== formattedPersen) {
+      row.persen = formattedPersen;
+      modified = true;
+    }
+    const matchedUser = registeredUsers.find(u => isAktivitasRowMatchUser(row, u));
+    if (matchedUser && !row.userId) {
+      row.userId = matchedUser.id || '';
+      row.username = matchedUser.username || '';
+    }
+  });
+
+  // Pastikan setiap user terdaftar yang belum ada di tabel juga ditambahkan
+  registeredUsers.forEach(u => {
+    // Abaikan akun demo/placeholder jika tidak ada di spreadsheet
+    const uNameLower = String(u.fullName || '').trim().toLowerCase();
+    if (uNameLower === 'rofi andiyono' && monthBucket.onlineRows.length >= 14 && !monthBucket.onlineRows.some(r => isAktivitasRowMatchUser(r, u))) {
+      return;
+    }
+    if (!monthBucket.onlineRows.some(r => isAktivitasRowMatchUser(r, u))) {
+      monthBucket.onlineRows.push(recalcAktivitasOnlineRow({
+        id: `akt_online_${u.id || Date.now()}`,
+        userId: u.id || '',
+        username: u.username || '',
+        name: String(u.fullName || '').toUpperCase(),
+        days: new Array(31).fill('')
+      }));
+      modified = true;
+    }
+    if (!monthBucket.auxRows.some(r => isAktivitasRowMatchUser(r, u))) {
+      monthBucket.auxRows.push(recalcAktivitasAuxRow({
+        id: `akt_aux_${u.id || Date.now()}`,
+        userId: u.id || '',
+        username: u.username || '',
+        name: String(u.fullName || '').toUpperCase(),
+        days: new Array(31).fill('')
+      }));
+      modified = true;
+    }
+  });
+
+  if (modified) {
+    state.saveAktivitasData(data);
+  }
+
+  const onlineDisplay = monthBucket.onlineRows.map((row, idx) => {
+    const user = registeredUsers.find(u => isAktivitasRowMatchUser(row, u)) || null;
+    return { row, idx, user };
+  });
+
+  const auxDisplay = monthBucket.auxRows.map((row, idx) => {
+    const user = registeredUsers.find(u => isAktivitasRowMatchUser(row, u)) || null;
+    return { row, idx, user };
+  });
+
+  return { data, monthBucket, onlineDisplay, auxDisplay };
+}
+
+function getAktivitasCellClass(val, section) {
+  const s = String(val ?? '').trim().toUpperCase();
+  if (!s) return '';
+  if (s === 'L') return 'akt-cell-libur';
+  if (s === 'CUTI') return 'akt-cell-cuti';
+  if (s === 'CTSK' || s === 'SAKIT') return 'akt-cell-sakit';
+  if (section === 'aux') {
+    const num = Number(s.replace(/\./g, '').replace(/,/g, ''));
+    if (!isNaN(num) && num > 5400) return 'akt-cell-over';
+  }
+  return '';
+}
+
+function renderAktivitasGSheetBar() {
+  const config = state.getAktivitasGSheetConfig();
+  const isConfigured = Boolean(config.webAppUrl || config.sheetId);
+
+  let openUrl = '';
+  if (config.sheetId) {
+    if (config.sheetId.startsWith('http')) {
+      openUrl = config.sheetId;
+    } else {
+      openUrl = `https://docs.google.com/spreadsheets/d/${config.sheetId}/edit`;
+    }
+  }
+
+  if (UI.aktivitasGSheetStatusBadge) {
+    if (isConfigured) {
+      UI.aktivitasGSheetStatusBadge.textContent = 'Terhubung';
+      UI.aktivitasGSheetStatusBadge.style.background = 'rgba(16, 185, 129, 0.2)';
+      UI.aktivitasGSheetStatusBadge.style.color = '#10b981';
+      UI.aktivitasGSheetStatusBadge.style.border = '1px solid rgba(16, 185, 129, 0.4)';
+    } else {
+      UI.aktivitasGSheetStatusBadge.textContent = 'Belum Dikonfigurasi';
+      UI.aktivitasGSheetStatusBadge.style.background = 'rgba(100, 116, 139, 0.2)';
+      UI.aktivitasGSheetStatusBadge.style.color = '#94a3b8';
+      UI.aktivitasGSheetStatusBadge.style.border = '1px solid rgba(100, 116, 139, 0.3)';
+    }
+  }
+
+  if (UI.aktivitasGSheetStatusInfo) {
+    if (isConfigured) {
+      const syncTime = config.lastSyncTime ? `Terakhir sinkron: ${config.lastSyncTime}` : 'Belum pernah disinkronkan';
+      const autoText = config.autoSync ? ' (Auto-Sync Aktif)' : ' (Sinkronisasi Manual)';
+      UI.aktivitasGSheetStatusInfo.innerHTML = `<span style="color:#10b981;"><i class="fa-solid fa-circle-check" style="margin-right:4px;"></i>${syncTime}${autoText}</span>`;
+    } else {
+      UI.aktivitasGSheetStatusInfo.textContent = 'Klik tombol "Pengaturan & Script" untuk menghubungkan tabel Durasi Online & AUX dengan Google Spreadsheet Anda.';
+    }
+  }
+
+  if (UI.btnAktivitasGSheetOpenLink) {
+    if (openUrl) {
+      UI.btnAktivitasGSheetOpenLink.href = openUrl;
+      UI.btnAktivitasGSheetOpenLink.classList.remove('hidden');
+      UI.btnAktivitasGSheetOpenLink.style.display = 'inline-flex';
+    } else {
+      UI.btnAktivitasGSheetOpenLink.classList.add('hidden');
+      UI.btnAktivitasGSheetOpenLink.style.display = 'none';
+    }
+  }
+
+  if (UI.btnAktivitasGSheetModalOpenLink) {
+    if (openUrl) {
+      UI.btnAktivitasGSheetModalOpenLink.href = openUrl;
+      UI.btnAktivitasGSheetModalOpenLink.classList.remove('hidden');
+      UI.btnAktivitasGSheetModalOpenLink.style.display = 'inline-flex';
+    } else {
+      UI.btnAktivitasGSheetModalOpenLink.classList.add('hidden');
+      UI.btnAktivitasGSheetModalOpenLink.style.display = 'none';
+    }
+  }
+}
+
+function openAktivitasGSheetModal() {
+  if (!state.isAdmin()) {
+    showToast('Akses Dibatasi', 'Hanya Administrator yang memiliki wewenang untuk mengatur integrasi Google Spreadsheet.', 'warning');
+    return;
+  }
+  const config = state.getAktivitasGSheetConfig();
+  if (UI.inputAktivitasGSheetWebAppUrl) UI.inputAktivitasGSheetWebAppUrl.value = config.webAppUrl || '';
+  if (UI.inputAktivitasGSheetUrl) UI.inputAktivitasGSheetUrl.value = config.sheetId || '';
+  if (UI.inputAktivitasGSheetTabName) UI.inputAktivitasGSheetTabName.value = config.sheetName || 'Aktivitas_Data';
+  if (UI.checkAktivitasGSheetAutoSync) UI.checkAktivitasGSheetAutoSync.checked = config.autoSync !== false;
+
+  const { onlineDisplay } = getSyncedAktivitasMonthRows(getSelectedAktivitasMonth());
+  if (UI.labelAktivitasGSheetModalTotalCount) UI.labelAktivitasGSheetModalTotalCount.textContent = `${onlineDisplay.length} Petugas`;
+  if (UI.labelAktivitasGSheetModalLastSync) UI.labelAktivitasGSheetModalLastSync.textContent = config.lastSyncTime || 'Belum pernah';
+
+  if (UI.labelAktivitasGSheetModalStatus) {
+    if (config.webAppUrl || config.sheetId) {
+      UI.labelAktivitasGSheetModalStatus.textContent = 'Terkonfigurasi (Siap Sinkron)';
+      UI.labelAktivitasGSheetModalStatus.style.color = '#10b981';
+    } else {
+      UI.labelAktivitasGSheetModalStatus.textContent = 'Belum Dikonfigurasi';
+      UI.labelAktivitasGSheetModalStatus.style.color = 'var(--gray-400)';
+    }
+  }
+
+  if (UI.codeAktivitasAppsScript) {
+    UI.codeAktivitasAppsScript.textContent = AKTIVITAS_APPS_SCRIPT_TEMPLATE;
+  }
+
+  switchAktivitasGSheetTab('config');
+  renderAktivitasGSheetBar();
+  if (UI.modalAktivitasGoogleSheets) UI.modalAktivitasGoogleSheets.classList.remove('hidden');
+}
+
+function closeAktivitasGSheetModal() {
+  if (UI.modalAktivitasGoogleSheets) UI.modalAktivitasGoogleSheets.classList.add('hidden');
+}
+
+function switchAktivitasGSheetTab(tab) {
+  if (tab === 'config') {
+    if (UI.tabBtnAktivitasGSheetConfig) UI.tabBtnAktivitasGSheetConfig.classList.add('active');
+    if (UI.tabBtnAktivitasGSheetGuide) UI.tabBtnAktivitasGSheetGuide.classList.remove('active');
+    if (UI.tabContentAktivitasGSheetConfig) UI.tabContentAktivitasGSheetConfig.classList.remove('hidden');
+    if (UI.tabContentAktivitasGSheetGuide) UI.tabContentAktivitasGSheetGuide.classList.add('hidden');
+  } else {
+    if (UI.tabBtnAktivitasGSheetConfig) UI.tabBtnAktivitasGSheetConfig.classList.remove('active');
+    if (UI.tabBtnAktivitasGSheetGuide) UI.tabBtnAktivitasGSheetGuide.classList.add('active');
+    if (UI.tabContentAktivitasGSheetConfig) UI.tabContentAktivitasGSheetConfig.classList.add('hidden');
+    if (UI.tabContentAktivitasGSheetGuide) UI.tabContentAktivitasGSheetGuide.classList.remove('hidden');
+    if (UI.codeAktivitasAppsScript) {
+      UI.codeAktivitasAppsScript.textContent = AKTIVITAS_APPS_SCRIPT_TEMPLATE;
+    }
+  }
+}
+
+function saveAktivitasGSheetConfigHandler() {
+  if (!state.isAdmin()) return;
+  const current = state.getAktivitasGSheetConfig();
+  const webAppUrl = (UI.inputAktivitasGSheetWebAppUrl ? UI.inputAktivitasGSheetWebAppUrl.value.trim() : '');
+  const sheetInput = (UI.inputAktivitasGSheetUrl ? UI.inputAktivitasGSheetUrl.value.trim() : '');
+  const sheetName = (UI.inputAktivitasGSheetTabName ? UI.inputAktivitasGSheetTabName.value.trim() : '') || 'Aktivitas_Data';
+  const autoSync = UI.checkAktivitasGSheetAutoSync ? UI.checkAktivitasGSheetAutoSync.checked : true;
+
+  current.webAppUrl = webAppUrl;
+  current.sheetId = sheetInput;
+  current.sheetName = sheetName;
+  current.autoSync = autoSync;
+  current.lastSyncStatus = (webAppUrl || sheetInput) ? 'configured' : 'disconnected';
+
+  state.saveAktivitasGSheetConfig(current);
+  renderAktivitasGSheetBar();
+
+  if (UI.labelAktivitasGSheetModalStatus) {
+    if (webAppUrl || sheetInput) {
+      UI.labelAktivitasGSheetModalStatus.textContent = 'Terkonfigurasi (Siap Sinkron)';
+      UI.labelAktivitasGSheetModalStatus.style.color = '#10b981';
+    } else {
+      UI.labelAktivitasGSheetModalStatus.textContent = 'Belum Dikonfigurasi';
+      UI.labelAktivitasGSheetModalStatus.style.color = 'var(--gray-400)';
+    }
+  }
+
+  showToast('Pengaturan Disimpan', 'Konfigurasi Google Spreadsheet untuk Aktivitas berhasil diperbarui.', 'success');
+}
+
+async function testAktivitasGSheetConnection() {
+  const webAppUrl = (UI.inputAktivitasGSheetWebAppUrl ? UI.inputAktivitasGSheetWebAppUrl.value.trim() : '') || state.getAktivitasGSheetConfig().webAppUrl;
+  if (!webAppUrl) {
+    showToast('URL Kosong', 'Harap masukkan URL Web App Google Apps Script terlebih dahulu.', 'warning');
+    return;
+  }
+
+  const testBtn = UI.btnAktivitasGSheetTest;
+  if (testBtn) {
+    testBtn.disabled = true;
+    testBtn.innerHTML = '<i class="fa-solid fa-arrows-rotate sync-spinning"></i> <span>Menguji...</span>';
+  }
+
+  try {
+    const testUrl = webAppUrl + (webAppUrl.includes('?') ? '&' : '?') + 'action=ping';
+    const resp = await fetch(testUrl, { method: 'GET', mode: 'cors' });
+    if (resp.ok) {
+      const data = await resp.json();
+      if (data && data.success) {
+        showToast('Koneksi Berhasil!', 'Google Apps Script Aktivitas merespons dengan baik.', 'success');
+        if (UI.labelAktivitasGSheetModalStatus) {
+          UI.labelAktivitasGSheetModalStatus.textContent = 'Terhubung Normal';
+          UI.labelAktivitasGSheetModalStatus.style.color = '#10b981';
+        }
+      } else {
+        showToast('Koneksi Ditolak', data.error || 'Respon tidak sesuai standar.', 'warning');
+      }
+    } else {
+      showToast('Koneksi Gagal', `HTTP Status: ${resp.status}`, 'danger');
+    }
+  } catch (err) {
+    console.error('Test Aktivitas GSheet connection error:', err);
+    showToast('Koneksi Gagal', 'Tidak dapat menghubungi Web App. Pastikan akses disetel ke "Anyone" saat deploy.', 'danger');
+  } finally {
+    if (testBtn) {
+      testBtn.disabled = false;
+      testBtn.innerHTML = '<i class="fa-solid fa-satellite-dish"></i> <span>Test Koneksi</span>';
+    }
+  }
+}
+
+function buildAktivitasSheet2DArray(monthKey) {
+  const { onlineDisplay, auxDisplay } = getSyncedAktivitasMonthRows(monthKey);
+  const sheetRows = [];
+  const dayNums = Array.from({ length: 31 }, (_, i) => i + 1);
+
+  sheetRows.push(['DURASI ONLINE']);
+  sheetRows.push([
+    'DURASI ONLINE',
+    ...dayNums,
+    'TOTAL',
+    '',
+    'TOTAL JAM ONLINE ACTUAL',
+    'JUMLAH KEHADIRAN',
+    'PRESENTASE KEHADIRAN',
+    'CUTI',
+    'HADIR+CUTI',
+    'SAKIT',
+    '%'
+  ]);
+
+  onlineDisplay.forEach(({ row }) => {
+    const days = Array.from({ length: 31 }, (_, i) => (row.days && row.days[i] !== undefined ? row.days[i] : ''));
+    sheetRows.push([
+      row.name || '',
+      ...days,
+      row.total ?? 0,
+      '',
+      row.totalActual ?? 0,
+      row.hadir ?? 0,
+      formatAktivitasPercent(row.persentaseHadir),
+      row.cuti ?? 0,
+      row.hadirCuti ?? 0,
+      row.sakit ?? 0,
+      formatAktivitasPercent(row.persen ?? '100%')
+    ]);
+  });
+
+  sheetRows.push([]);
+  sheetRows.push([]);
+  sheetRows.push([]);
+
+  sheetRows.push([
+    'AUX',
+    ...dayNums,
+    'TOTAL',
+    '',
+    'Total AUX',
+    'JUMLAH KEHADIRAN',
+    'PENGGUNAAN HARIAN',
+    'JML UNDER',
+    'JML OVER',
+    '%'
+  ]);
+
+  auxDisplay.forEach(({ row }) => {
+    const days = Array.from({ length: 31 }, (_, i) => (row.days && row.days[i] !== undefined ? row.days[i] : ''));
+    sheetRows.push([
+      row.name || '',
+      ...days,
+      row.total ?? 0,
+      '',
+      row.totalOmni ?? 0,
+      row.hadir ?? 0,
+      row.penggunaanHarian ?? 0,
+      row.jmlUnder ?? 0,
+      row.jmlOver ?? 0,
+      formatAktivitasPercent(row.persen ?? '100%')
+    ]);
+  });
+
+  return sheetRows;
+}
+
+async function pushAktivitasToGoogleSheets() {
+  if (!state.isAdmin()) {
+    showToast('Akses Dibatasi', 'Hanya Administrator yang memiliki wewenang untuk sinkronisasi Google Spreadsheet.', 'warning');
+    return;
+  }
+  const config = state.getAktivitasGSheetConfig();
+  if (!config.webAppUrl) {
+    showToast('Belum Dikonfigurasi', 'Harap konfigurasi URL Web App Google Apps Script terlebih dahulu.', 'warning');
+    openAktivitasGSheetModal();
+    return;
+  }
+
+  const monthKey = getSelectedAktivitasMonth();
+  const sheetRows = buildAktivitasSheet2DArray(monthKey);
+  const pushBtn = UI.btnAktivitasGSheetPush;
+  const modalPushBtn = UI.btnAktivitasGSheetModalPush;
+
+  const setPushing = (isPushing) => {
+    if (pushBtn) {
+      pushBtn.disabled = isPushing;
+      pushBtn.innerHTML = isPushing ? '<i class="fa-solid fa-arrows-rotate sync-spinning"></i> <span>Mengirim...</span>' : '<i class="fa-solid fa-cloud-arrow-up"></i> <span>Kirim ke Sheets</span>';
+    }
+    if (modalPushBtn) {
+      modalPushBtn.disabled = isPushing;
+      modalPushBtn.innerHTML = isPushing ? '<i class="fa-solid fa-arrows-rotate sync-spinning"></i> <span>Mengirim...</span>' : '<i class="fa-solid fa-cloud-arrow-up"></i> <span>Kirim ke Sheets</span>';
+    }
+  };
+
+  setPushing(true);
+  try {
+    await fetch(config.webAppUrl, {
+      method: 'POST',
+      body: JSON.stringify({
+        action: 'sync_all',
+        month: monthKey,
+        sheetName: config.sheetName || 'Aktivitas_Data',
+        sheetRows
+      }),
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' }
+    });
+    const now = new Date();
+    config.lastSyncTime = `${String(now.getDate()).padStart(2, '0')}/${String(now.getMonth() + 1).padStart(2, '0')}/${now.getFullYear()} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+    state.saveAktivitasGSheetConfig(config);
+    renderAktivitasGSheetBar();
+    showToast('Kirim ke Sheets Berhasil', `Data Aktivitas bulan <strong>${formatMonthLabel(monthKey)}</strong> berhasil dikirim ke Google Spreadsheet.`, 'success');
+  } catch (err) {
+    console.error('Error pushing Aktivitas to Google Sheets:', err);
+    showToast('Gagal Mengirim Data', 'Pastikan URL Web App benar dan memiliki izin akses "Anyone".', 'danger');
+  } finally {
+    setPushing(false);
+  }
+}
+
+/**
+ * Mengurai matriks 2D kaya gaya (values, displayValues, backgrounds, fontColors, fontFamilies, fontWeights, fontStyles, fontSizes, alignments)
+ * menjadi onlineRows, auxRows, onlineHeaderStyles, dan auxHeaderStyles.
+ */
+function parseAktivitasRichGrid(grid) {
+  const onlineRows = [];
+  const auxRows = [];
+  let onlineHeaderStyles = null;
+  let auxHeaderStyles = null;
+  let mode = null; // 'online' | 'aux'
+  let sumStartIdx = 32;
+  let hasEmptySpacerCol = true;
+
+  for (let r = 0; r < grid.length; r++) {
+    const rowCells = grid[r] || [];
+    if (rowCells.length === 0) continue;
+    const c0 = rowCells[0] || { val: '', displayVal: '', style: {} };
+    const firstText = String(c0.displayVal || c0.val || '').trim();
+    const upperFirst = firstText.toUpperCase();
+    const c1 = rowCells[1] || { val: '', displayVal: '', style: {} };
+    const secondText = String(c1.displayVal || c1.val || '').trim();
+
+    if (upperFirst === 'DURASI ONLINE') {
+      if (secondText === '1') {
+        mode = 'online';
+        const c33Text = String((rowCells[33] && (rowCells[33].displayVal || rowCells[33].val)) || '').trim();
+        hasEmptySpacerCol = (c33Text === '');
+        const sOffset = hasEmptySpacerCol ? 34 : 33;
+        onlineHeaderStyles = {
+          name: c0.style || {},
+          days: Array.from({ length: 31 }, (_, d) => (rowCells[d + 1] && rowCells[d + 1].style) || {}),
+          summaries: {
+            total: (rowCells[32] && rowCells[32].style) || {},
+            totalActual: (rowCells[sOffset] && rowCells[sOffset].style) || {},
+            hadir: (rowCells[sOffset + 1] && rowCells[sOffset + 1].style) || {},
+            persentaseHadir: (rowCells[sOffset + 2] && rowCells[sOffset + 2].style) || {},
+            cuti: (rowCells[sOffset + 3] && rowCells[sOffset + 3].style) || {},
+            hadirCuti: (rowCells[sOffset + 4] && rowCells[sOffset + 4].style) || {},
+            sakit: (rowCells[sOffset + 5] && rowCells[sOffset + 5].style) || {},
+            persen: (rowCells[sOffset + 6] && rowCells[sOffset + 6].style) || {}
+          }
+        };
+      }
+      continue;
+    }
+
+    if (upperFirst === 'AUX') {
+      if (secondText === '1') {
+        mode = 'aux';
+        const c33Text = String((rowCells[33] && (rowCells[33].displayVal || rowCells[33].val)) || '').trim();
+        hasEmptySpacerCol = (c33Text === '');
+        const sOffset = hasEmptySpacerCol ? 34 : 33;
+        auxHeaderStyles = {
+          name: c0.style || {},
+          days: Array.from({ length: 31 }, (_, d) => (rowCells[d + 1] && rowCells[d + 1].style) || {}),
+          summaries: {
+            total: (rowCells[32] && rowCells[32].style) || {},
+            totalOmni: (rowCells[sOffset] && rowCells[sOffset].style) || {},
+            hadir: (rowCells[sOffset + 1] && rowCells[sOffset + 1].style) || {},
+            penggunaanHarian: (rowCells[sOffset + 2] && rowCells[sOffset + 2].style) || {},
+            jmlUnder: (rowCells[sOffset + 3] && rowCells[sOffset + 3].style) || {},
+            jmlOver: (rowCells[sOffset + 4] && rowCells[sOffset + 4].style) || {},
+            persen: (rowCells[sOffset + 5] && rowCells[sOffset + 5].style) || {}
+          }
+        };
+      }
+      continue;
+    }
+
+    if (!firstText) continue;
+
+    const days = new Array(31).fill('');
+    const dayStyles = new Array(31).fill(null);
+    for (let d = 1; d <= 31; d++) {
+      const cell = rowCells[d];
+      days[d - 1] = cell ? String(cell.displayVal !== undefined && cell.displayVal !== '' ? cell.displayVal : (cell.val ?? '')).trim() : '';
+      dayStyles[d - 1] = (cell && cell.style) ? cell.style : null;
+    }
+
+    const sOffset = hasEmptySpacerCol ? 34 : 33;
+    const getCellDisp = (idx) => {
+      const cell = rowCells[idx];
+      if (!cell) return '';
+      return String(cell.displayVal !== undefined && cell.displayVal !== '' ? cell.displayVal : (cell.val ?? '')).trim();
+    };
+    const getCellStyle = (idx) => (rowCells[idx] && rowCells[idx].style) ? rowCells[idx].style : null;
+
+    if (mode === 'aux') {
+      const rowObj = recalcAktivitasAuxRow({
+        id: `akt_aux_${Date.now()}_${auxRows.length}`,
+        name: firstText,
+        nameStyle: c0.style || null,
+        days,
+        dayStyles,
+        sumStyles: {
+          total: getCellStyle(32),
+          totalOmni: getCellStyle(sOffset),
+          hadir: getCellStyle(sOffset + 1),
+          penggunaanHarian: getCellStyle(sOffset + 2),
+          jmlUnder: getCellStyle(sOffset + 3),
+          jmlOver: getCellStyle(sOffset + 4),
+          persen: getCellStyle(sOffset + 5)
+        }
+      });
+      if (getCellDisp(32) !== '') rowObj.total = getCellDisp(32);
+      if (getCellDisp(sOffset) !== '') rowObj.totalOmni = getCellDisp(sOffset);
+      if (getCellDisp(sOffset + 1) !== '') rowObj.hadir = getCellDisp(sOffset + 1);
+      if (getCellDisp(sOffset + 2) !== '') rowObj.penggunaanHarian = getCellDisp(sOffset + 2);
+      if (getCellDisp(sOffset + 3) !== '') rowObj.jmlUnder = getCellDisp(sOffset + 3);
+      if (getCellDisp(sOffset + 4) !== '') rowObj.jmlOver = getCellDisp(sOffset + 4);
+      if (getCellDisp(sOffset + 5) !== '') rowObj.persen = formatAktivitasPercent(getCellDisp(sOffset + 5));
+      auxRows.push(rowObj);
+    } else {
+      const rowObj = recalcAktivitasOnlineRow({
+        id: `akt_online_${Date.now()}_${onlineRows.length}`,
+        name: firstText,
+        nameStyle: c0.style || null,
+        days,
+        dayStyles,
+        sumStyles: {
+          total: getCellStyle(32),
+          totalActual: getCellStyle(sOffset),
+          hadir: getCellStyle(sOffset + 1),
+          persentaseHadir: getCellStyle(sOffset + 2),
+          cuti: getCellStyle(sOffset + 3),
+          hadirCuti: getCellStyle(sOffset + 4),
+          sakit: getCellStyle(sOffset + 5),
+          persen: getCellStyle(sOffset + 6)
+        }
+      });
+      if (getCellDisp(32) !== '') rowObj.total = getCellDisp(32);
+      if (getCellDisp(sOffset) !== '') rowObj.totalActual = getCellDisp(sOffset);
+      if (getCellDisp(sOffset + 1) !== '') rowObj.hadir = getCellDisp(sOffset + 1);
+      if (getCellDisp(sOffset + 2) !== '') rowObj.persentaseHadir = formatAktivitasPercent(getCellDisp(sOffset + 2));
+      if (getCellDisp(sOffset + 3) !== '') rowObj.cuti = getCellDisp(sOffset + 3);
+      if (getCellDisp(sOffset + 4) !== '') rowObj.hadirCuti = getCellDisp(sOffset + 4);
+      if (getCellDisp(sOffset + 5) !== '') rowObj.sakit = getCellDisp(sOffset + 5);
+      if (getCellDisp(sOffset + 6) !== '') rowObj.persen = formatAktivitasPercent(getCellDisp(sOffset + 6));
+      onlineRows.push(rowObj);
+    }
+  }
+
+  return { onlineRows, auxRows, onlineHeaderStyles, auxHeaderStyles };
+}
+
+function parseAktivitasXlsxBuffer(arrayBuffer, preferredSheetName, gid) {
+  if (typeof XLSX === 'undefined' || !XLSX.read) return null;
+  const wb = XLSX.read(new Uint8Array(arrayBuffer), {
+    type: 'array',
+    cellStyles: true,
+    sheetStubs: true,
+    cellNF: true,
+    cellText: true
+  });
+  if (!wb || !Array.isArray(wb.SheetNames) || wb.SheetNames.length === 0) return null;
+  let targetSheetName = wb.SheetNames[0];
+  if (preferredSheetName && wb.Sheets[preferredSheetName]) {
+    targetSheetName = preferredSheetName;
+  }
+  const ws = wb.Sheets[targetSheetName];
+  if (!ws || !ws['!ref']) return null;
+
+  const range = XLSX.utils.decode_range(ws['!ref']);
+  const grid = [];
+  for (let R = range.s.r; R <= range.e.r; R++) {
+    const rowArr = [];
+    for (let C = range.s.c; C <= range.e.c; C++) {
+      const addr = XLSX.utils.encode_cell({ r: R, c: C });
+      const cell = ws[addr];
+      if (!cell) {
+        rowArr.push({ val: '', displayVal: '', style: null });
+        continue;
+      }
+      const style = {};
+      if (cell.s && cell.s.fgColor && cell.s.fgColor.rgb && cell.s.patternType !== 'none') {
+        const hex = String(cell.s.fgColor.rgb).slice(-6);
+        style.bg = `#${hex}`;
+      }
+      if (cell._font) {
+        if (cell._font.color && cell._font.color.rgb) {
+          style.fg = `#${String(cell._font.color.rgb).slice(-6)}`;
+        }
+        if (cell._font.name) style.ff = cell._font.name;
+        if (cell._font.bold) style.fw = 'bold';
+        if (cell._font.italic) style.fi = 'italic';
+        if (cell._font.sz) style.fs = cell._font.sz;
+      }
+      if (cell._xf && cell._xf.alignment && cell._xf.alignment.horizontal) {
+        style.align = cell._xf.alignment.horizontal;
+      }
+      const disp = cell.w !== undefined ? String(cell.w) : (cell.v !== undefined ? String(cell.v) : '');
+      rowArr.push({
+        val: cell.v !== undefined ? cell.v : '',
+        displayVal: disp,
+        style: Object.keys(style).length > 0 ? style : null
+      });
+    }
+    grid.push(rowArr);
+  }
+  return parseAktivitasRichGrid(grid);
+}
+
+function parseAktivitasAppsScriptJson(json) {
+  const disp = Array.isArray(json.displayValues) ? json.displayValues : (Array.isArray(json.rows) ? json.rows : []);
+  const vals = Array.isArray(json.values) ? json.values : disp;
+  const bgs = Array.isArray(json.backgrounds) ? json.backgrounds : [];
+  const fgs = Array.isArray(json.fontColors) ? json.fontColors : [];
+  const ffs = Array.isArray(json.fontFamilies) ? json.fontFamilies : [];
+  const fws = Array.isArray(json.fontWeights) ? json.fontWeights : [];
+  const fis = Array.isArray(json.fontStyles) ? json.fontStyles : [];
+  const fss = Array.isArray(json.fontSizes) ? json.fontSizes : [];
+  const als = Array.isArray(json.alignments) ? json.alignments : [];
+
+  const grid = [];
+  for (let r = 0; r < disp.length; r++) {
+    const rDisp = disp[r] || [];
+    const rowArr = [];
+    for (let c = 0; c < rDisp.length; c++) {
+      const style = {};
+      if (bgs[r] && bgs[r][c]) style.bg = bgs[r][c];
+      if (fgs[r] && fgs[r][c]) style.fg = fgs[r][c];
+      if (ffs[r] && ffs[r][c]) style.ff = ffs[r][c];
+      if (fws[r] && fws[r][c] && fws[r][c] !== 'normal') style.fw = fws[r][c];
+      if (fis[r] && fis[r][c] && fis[r][c] !== 'normal') style.fi = fis[r][c];
+      if (fss[r] && fss[r][c]) style.fs = fss[r][c];
+      if (als[r] && als[r][c] && als[r][c] !== 'general') style.align = als[r][c];
+      rowArr.push({
+        val: (vals[r] && vals[r][c] !== undefined) ? vals[r][c] : rDisp[c],
+        displayVal: String(rDisp[c] ?? ''),
+        style: Object.keys(style).length > 0 ? style : null
+      });
+    }
+    grid.push(rowArr);
+  }
+  return parseAktivitasRichGrid(grid);
+}
+
+function parseAktivitasHtmlClipboard(htmlStr) {
+  if (typeof DOMParser === 'undefined' || !htmlStr) return null;
+  const doc = new DOMParser().parseFromString(htmlStr, 'text/html');
+  const table = doc.querySelector('table');
+  if (!table) return null;
+  const trs = Array.from(table.querySelectorAll('tr'));
+  if (trs.length === 0) return null;
+
+  const grid = trs.map(tr => {
+    const cells = Array.from(tr.querySelectorAll('td, th'));
+    return cells.map(td => {
+      const style = {};
+      const s = td.style || {};
+      const bg = s.backgroundColor || td.getAttribute('bgcolor') || '';
+      const fg = s.color || '';
+      const ff = s.fontFamily || '';
+      const fw = s.fontWeight || '';
+      const fi = s.fontStyle || '';
+      const ta = s.textAlign || '';
+      if (bg) style.bg = bg;
+      if (fg) style.fg = fg;
+      if (ff) style.ff = ff.replace(/['"]/g, '');
+      if (fw) style.fw = fw;
+      if (fi) style.fi = fi;
+      if (ta) style.align = ta;
+      const text = (td.textContent || '').trim();
+      return {
+        val: text,
+        displayVal: text,
+        style: Object.keys(style).length > 0 ? style : null
+      };
+    });
+  });
+  return parseAktivitasRichGrid(grid);
+}
+
+function applyPulledAktivitasRowsToMonth(monthKey, parsed) {
+  const data = state.getAktivitasData();
+  if (!data.byMonth || typeof data.byMonth !== 'object') data.byMonth = {};
+  if (!data.byMonth[monthKey]) {
+    data.byMonth[monthKey] = { onlineRows: [], auxRows: [] };
+  }
+  const monthBucket = data.byMonth[monthKey];
+  monthBucket._hasCustomPull = true;
+
+  if (parsed.onlineHeaderStyles) {
+    monthBucket.onlineHeaderStyles = parsed.onlineHeaderStyles;
+  }
+  if (parsed.auxHeaderStyles) {
+    monthBucket.auxHeaderStyles = parsed.auxHeaderStyles;
+  }
+
+  const allUsers = (state.getUsers() || []).filter(u => u && u.role !== 'admin');
+
+  if (parsed.onlineRows && parsed.onlineRows.length > 0) {
+    monthBucket.onlineRows = parsed.onlineRows.map(pulledRow => {
+      const matchedUser = allUsers.find(u => isAktivitasRowMatchUser(pulledRow, u));
+      if (matchedUser) {
+        pulledRow.userId = matchedUser.id || '';
+        pulledRow.username = matchedUser.username || '';
+      }
+      pulledRow.persentaseHadir = formatAktivitasPercent(pulledRow.persentaseHadir);
+      pulledRow.persen = formatAktivitasPercent(pulledRow.persen);
+      return pulledRow;
+    });
+  }
+
+  if (parsed.auxRows && parsed.auxRows.length > 0) {
+    monthBucket.auxRows = parsed.auxRows.map(pulledRow => {
+      const matchedUser = allUsers.find(u => isAktivitasRowMatchUser(pulledRow, u));
+      if (matchedUser) {
+        pulledRow.userId = matchedUser.id || '';
+        pulledRow.username = matchedUser.username || '';
+      }
+      pulledRow.persen = formatAktivitasPercent(pulledRow.persen);
+      return pulledRow;
+    });
+  }
+
+  data.onlineRows = monthBucket.onlineRows;
+  data.auxRows = monthBucket.auxRows;
+  data.updatedAt = new Date().toISOString();
+  state.saveAktivitasData(data);
+}
+
+async function pullAktivitasFromGoogleSheets() {
+  if (!state.isAdmin()) {
+    showToast('Akses Dibatasi', 'Hanya Administrator yang memiliki wewenang untuk sinkronisasi Google Spreadsheet.', 'warning');
+    return;
+  }
+  const config = state.getAktivitasGSheetConfig();
+  if (!config.webAppUrl && !config.sheetId) {
+    showToast('Belum Dikonfigurasi', 'Harap konfigurasi URL Web App atau ID Spreadsheet terlebih dahulu.', 'warning');
+    openAktivitasGSheetModal();
+    return;
+  }
+
+  const pullBtn = UI.btnAktivitasGSheetPull;
+  const modalPullBtn = UI.btnAktivitasGSheetModalPull;
+  const setPulling = (isPulling) => {
+    if (pullBtn) {
+      pullBtn.disabled = isPulling;
+      pullBtn.innerHTML = isPulling ? '<i class="fa-solid fa-arrows-rotate sync-spinning"></i> <span>Menarik...</span>' : '<i class="fa-solid fa-cloud-arrow-down"></i> <span>Tarik Data</span>';
+    }
+    if (modalPullBtn) {
+      modalPullBtn.disabled = isPulling;
+      modalPullBtn.innerHTML = isPulling ? '<i class="fa-solid fa-arrows-rotate sync-spinning"></i> <span>Menarik...</span>' : '<i class="fa-solid fa-cloud-arrow-down"></i> <span>Tarik Data</span>';
+    }
+  };
+
+  setPulling(true);
+  const monthKey = getSelectedAktivitasMonth();
+
+  try {
+    let parsedResult = null;
+
+    // 1. Coba tarik via Web App URL (menyertakan backgrounds, fontColors, fontFamilies, displayValues)
+    if (config.webAppUrl) {
+      try {
+        const getUrl = config.webAppUrl + (config.webAppUrl.includes('?') ? '&' : '?') + `action=get_all&month=${encodeURIComponent(monthKey)}&sheet=${encodeURIComponent(config.sheetName || 'Aktivitas_Data')}`;
+        const resp = await fetch(getUrl, { method: 'GET', mode: 'cors' });
+        if (resp.ok) {
+          const json = await resp.json();
+          if (json && (Array.isArray(json.displayValues) || Array.isArray(json.rows))) {
+            parsedResult = parseAktivitasAppsScriptJson(json);
+          } else if (json && json.csvText) {
+            parsedResult = parseAktivitasSpreadsheetText(json.csvText);
+          }
+        }
+      } catch (e) {
+        console.warn('WebApp fetch fallback to sheetId:', e);
+      }
+    }
+
+    // 2. Jika sheetId tersedia dan belum mendapat hasil lengkap, tarik file .xlsx asli dari Google Sheets agar Font, Warna Font, dan Warna Blok (Background) 100% terambil
+    if ((!parsedResult || (parsedResult.onlineRows.length === 0 && parsedResult.auxRows.length === 0)) && config.sheetId) {
+      const cleanId = extractGoogleSpreadsheetId(config.sheetId);
+      const gidMatch = String(config.sheetId).match(/[#&?]gid=([0-9]+)/);
+      const gid = gidMatch ? gidMatch[1] : '';
+
+      try {
+        const xlsxUrl = `https://docs.google.com/spreadsheets/d/${cleanId}/export?format=xlsx`;
+        const respXlsx = await fetch(xlsxUrl);
+        if (respXlsx.ok) {
+          const buf = await respXlsx.arrayBuffer();
+          parsedResult = parseAktivitasXlsxBuffer(buf, config.sheetName, gid);
+        }
+      } catch (eXlsx) {
+        console.warn('XLSX export fallback to CSV:', eXlsx);
+      }
+
+      // 3. Fallback ke CSV jika XLSX tidak tersedia
+      if (!parsedResult || (parsedResult.onlineRows.length === 0 && parsedResult.auxRows.length === 0)) {
+        const csvUrl = gid
+          ? `https://docs.google.com/spreadsheets/d/${cleanId}/export?format=csv&gid=${gid}`
+          : `https://docs.google.com/spreadsheets/d/${cleanId}/export?format=csv&sheet=${encodeURIComponent(config.sheetName || 'Aktivitas_Data')}`;
+        const respCsv = await fetch(csvUrl);
+        if (respCsv.ok) {
+          const rawSheetText = await respCsv.text();
+          if (rawSheetText && rawSheetText.trim()) {
+            parsedResult = parseAktivitasSpreadsheetText(rawSheetText);
+          }
+        }
+      }
+    }
+
+    if (parsedResult && (parsedResult.onlineRows.length > 0 || parsedResult.auxRows.length > 0)) {
+      applyPulledAktivitasRowsToMonth(monthKey, parsedResult);
+      const now = new Date();
+      config.lastSyncTime = `${String(now.getDate()).padStart(2, '0')}/${String(now.getMonth() + 1).padStart(2, '0')}/${now.getFullYear()} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+      state.saveAktivitasGSheetConfig(config);
+      renderAktivitasPage();
+      showToast('Tarik Data Berhasil', `Berhasil menyinkronkan data & tampilan spreadsheet untuk bulan <strong>${formatMonthLabel(monthKey)}</strong>.`, 'success');
+    } else {
+      showToast('Data Kosong / Format Tidak Dikenali', 'Pastikan Google Spreadsheet memiliki tabel DURASI ONLINE dan AUX serta akses disetel publik / Anyone.', 'warning');
+    }
+  } catch (err) {
+    console.error('Error pulling Aktivitas from Google Sheets:', err);
+    showToast('Gagal Menarik Data', 'Pastikan Google Apps Script sudah dideploy dengan akses "Anyone" atau sheet publik.', 'danger');
+  } finally {
+    setPulling(false);
+  }
+}
+
+function triggerAutoSyncAktivitas() {
+  const config = state.getAktivitasGSheetConfig();
+  if (!config.webAppUrl || config.autoSync === false) return;
+  if (aktivitasAutoSyncTimer) clearTimeout(aktivitasAutoSyncTimer);
+  aktivitasAutoSyncTimer = setTimeout(() => {
+    const monthKey = getSelectedAktivitasMonth();
+    const sheetRows = buildAktivitasSheet2DArray(monthKey);
+    fetch(config.webAppUrl, {
+      method: 'POST',
+      body: JSON.stringify({
+        action: 'sync_all',
+        month: monthKey,
+        sheetName: config.sheetName || 'Aktivitas_Data',
+        sheetRows
+      }),
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' }
+    }).then(() => {
+      const now = new Date();
+      config.lastSyncTime = `${String(now.getDate()).padStart(2, '0')}/${String(now.getMonth() + 1).padStart(2, '0')}/${now.getFullYear()} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+      state.saveAktivitasGSheetConfig(config);
+      renderAktivitasGSheetBar();
+    }).catch(err => {
+      console.warn('Auto-sync Aktivitas warning:', err);
+    });
+  }, 800);
+}
+
+function copyAktivitasAppsScriptCode() {
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(AKTIVITAS_APPS_SCRIPT_TEMPLATE).then(() => {
+      showToast('Tersalin!', 'Kode Google Apps Script Aktivitas berhasil disalin ke clipboard.', 'success');
+    }).catch(() => {
+      fallbackCopyText(AKTIVITAS_APPS_SCRIPT_TEMPLATE);
+    });
+  } else {
+    fallbackCopyText(AKTIVITAS_APPS_SCRIPT_TEMPLATE);
+  }
+}
+
+function renderAktivitasPage() {
+  if (typeof updateDynamicMonthDropdowns === 'function') {
+    updateDynamicMonthDropdowns();
+  }
+  if (typeof syncUserControlsForPage === 'function') {
+    syncUserControlsForPage('aktivitas', state.currentUser);
+  }
+
+  const isAdmin = state.isAdmin();
+  const monthKey = getSelectedAktivitasMonth();
+  const { monthBucket, onlineDisplay, auxDisplay } = getSyncedAktivitasMonthRows(monthKey);
+  const searchQ = (UI.searchAktivitasInput ? UI.searchAktivitasInput.value.trim().toLowerCase() : '');
+
+  if (UI.btnClearSearchAktivitas) {
+    UI.btnClearSearchAktivitas.classList.toggle('hidden', !searchQ);
+  }
+
+  renderAktivitasGSheetBar();
+  if (UI.aktivitasGSheetSyncBar) {
+    UI.aktivitasGSheetSyncBar.classList.toggle('hidden', !isAdmin);
+  }
+
+  // Update Role Badge & Permission Banner
+  if (UI.aktivitasRoleBadge) {
+    if (isAdmin) {
+      UI.aktivitasRoleBadge.className = 'badge badge-red-outline';
+      UI.aktivitasRoleBadge.innerHTML = '<i class="fa-solid fa-pen-to-square"></i> Mode Edit Admin';
+    } else {
+      UI.aktivitasRoleBadge.className = 'badge badge-gray';
+      UI.aktivitasRoleBadge.innerHTML = '<i class="fa-solid fa-eye"></i> Mode Lihat Saja';
+    }
+  }
+
+  if (UI.aktivitasBannerTitle && UI.aktivitasBannerDesc && UI.aktivitasBannerPill) {
+    if (isAdmin) {
+      UI.aktivitasBannerTitle.textContent = 'Otoritas Akses: Administrator (Mode Edit Aktif)';
+      UI.aktivitasBannerDesc.innerHTML = `Anda dapat mengedit langsung nilai pada setiap sel tabel <strong>Durasi Online</strong> dan <strong>AUX</strong> periode <strong>${formatMonthLabel(monthKey)}</strong>.`;
+      UI.aktivitasBannerPill.className = 'badge badge-admin';
+      UI.aktivitasBannerPill.textContent = 'FULL EDIT ACCESS';
+    } else {
+      UI.aktivitasBannerTitle.textContent = 'Otoritas Akses: Pengguna (Mode Lihat Saja / Read-Only)';
+      UI.aktivitasBannerDesc.innerHTML = `Anda hanya dapat melihat rekapitulasi <strong>Durasi Online</strong> dan <strong>AUX</strong> periode <strong>${formatMonthLabel(monthKey)}</strong>. Perubahan data hanya dapat dilakukan oleh Administrator.`;
+      UI.aktivitasBannerPill.className = 'badge badge-user';
+      UI.aktivitasBannerPill.textContent = 'READ ONLY';
+    }
+  }
+
+  // Toggle Admin Action Buttons
+  if (UI.btnOpenImportAktivitasModal) UI.btnOpenImportAktivitasModal.classList.toggle('hidden', !isAdmin);
+  if (UI.btnResetAktivitasDefault) UI.btnResetAktivitasDefault.classList.toggle('hidden', !isAdmin);
+
+  // Section visibility by active tab
+  if (UI.sectionAktivitasOnline) {
+    UI.sectionAktivitasOnline.classList.toggle('hidden', aktivitasActiveTab === 'AUX');
+  }
+  if (UI.sectionAktivitasAux) {
+    UI.sectionAktivitasAux.classList.toggle('hidden', aktivitasActiveTab === 'ONLINE');
+  }
+
+  const oHdr = monthBucket.onlineHeaderStyles || {};
+  const oDayHeaders = Array.from({ length: 31 }, (_, i) => {
+    const stCss = styleObjToInlineCss(oHdr.days && oHdr.days[i]);
+    return `<th style="${stCss}">${i + 1}</th>`;
+  }).join('');
+
+  // ==================== 1. RENDER DURASI ONLINE ====================
+  if (UI.theadAktivitasOnline) {
+    const oSumSt = oHdr.summaries || {};
+    UI.theadAktivitasOnline.innerHTML = `
+      <tr>
+        <th class="akt-col-sticky" style="${styleObjToInlineCss(oHdr.name)}">DURASI ONLINE</th>
+        ${oDayHeaders}
+        <th class="akt-col-summary" style="${styleObjToInlineCss(oSumSt.total)}">TOTAL</th>
+        <th class="akt-col-summary" style="${styleObjToInlineCss(oSumSt.totalActual)}">TOTAL JAM ONLINE ACTUAL</th>
+        <th class="akt-col-summary" style="${styleObjToInlineCss(oSumSt.hadir)}">JUMLAH KEHADIRAN</th>
+        <th class="akt-col-summary" style="${styleObjToInlineCss(oSumSt.persentaseHadir)}">PRESENTASE KEHADIRAN</th>
+        <th class="akt-col-summary" style="${styleObjToInlineCss(oSumSt.cuti)}">CUTI</th>
+        <th class="akt-col-summary" style="${styleObjToInlineCss(oSumSt.hadirCuti)}">HADIR+CUTI</th>
+        <th class="akt-col-summary" style="${styleObjToInlineCss(oSumSt.sakit)}">SAKIT</th>
+        <th class="akt-col-summary" style="${styleObjToInlineCss(oSumSt.persen)}">%</th>
+        ${isAdmin ? '<th class="akt-col-summary" style="text-align:center;">AKSI</th>' : ''}
+      </tr>
+    `;
+  }
+
+  const filteredOnline = onlineDisplay.filter(({ row, user }) => {
+    if (!searchQ) return true;
+    const nameStr = String(row.name || (user && user.fullName) || '').toLowerCase();
+    return nameStr.includes(searchQ);
+  });
+
+  if (UI.badgeAktivitasOnlineCount) {
+    UI.badgeAktivitasOnlineCount.textContent = `${filteredOnline.length} Petugas`;
+  }
+
+  if (UI.tbodyAktivitasOnline) {
+    if (filteredOnline.length === 0) {
+      const colSpan = isAdmin ? 41 : 40;
+      UI.tbodyAktivitasOnline.innerHTML = `<tr><td colspan="${colSpan}" style="text-align:center; padding:24px; color:#555;">Tidak ada data user terdaftar yang cocok dengan pencarian.</td></tr>`;
+    } else {
+      UI.tbodyAktivitasOnline.innerHTML = filteredOnline.map(({ row, idx }) => {
+        const displayName = row.name || '-';
+        const safeName = String(displayName).replace(/"/g, '&quot;');
+        const nameCss = styleObjToInlineCss(row.nameStyle);
+        const nameCell = isAdmin
+          ? `<input type="text" class="aktivitas-cell-input akt-name-input" data-section="online" data-row="${idx}" data-field="name" value="${safeName}">`
+          : `<span>${displayName}</span>`;
+
+        const dayCells = Array.from({ length: 31 }, (_, d) => {
+          const val = row.days && row.days[d] !== undefined ? row.days[d] : '';
+          const safeVal = String(val ?? '').replace(/"/g, '&quot;');
+          const cellSt = row.dayStyles && row.dayStyles[d] ? row.dayStyles[d] : null;
+          const cellCss = styleObjToInlineCss(cellSt);
+          const statusCls = (cellSt && cellSt.bg) ? '' : getAktivitasCellClass(val, 'online');
+          if (isAdmin) {
+            return `<td class="akt-col-day ${statusCls}" id="aktCell_online_${idx}_${d}" style="${cellCss}"><input type="text" class="aktivitas-cell-input" data-section="online" data-row="${idx}" data-day="${d}" value="${safeVal}"></td>`;
+          }
+          return `<td class="akt-col-day ${statusCls}" style="${cellCss}">${val !== '' ? val : ''}</td>`;
+        }).join('');
+
+        const sumFields = [
+          { key: 'total', val: row.total ?? 0 },
+          { key: 'totalActual', val: row.totalActual ?? 0 },
+          { key: 'hadir', val: row.hadir ?? 0 },
+          { key: 'persentaseHadir', val: formatAktivitasPercent(row.persentaseHadir ?? '0%') },
+          { key: 'cuti', val: row.cuti ?? 0 },
+          { key: 'hadirCuti', val: row.hadirCuti ?? 0 },
+          { key: 'sakit', val: row.sakit ?? 0 },
+          { key: 'persen', val: formatAktivitasPercent(row.persen ?? '100%') }
+        ];
+
+        const sumCells = sumFields.map(sf => {
+          const sVal = String(sf.val ?? '').replace(/"/g, '&quot;');
+          const sumSt = row.sumStyles && row.sumStyles[sf.key] ? row.sumStyles[sf.key] : null;
+          const sumCss = styleObjToInlineCss(sumSt);
+          if (isAdmin) {
+            return `<td class="akt-col-summary" style="${sumCss}"><input type="text" class="aktivitas-cell-input akt-sum-input" id="aktSum_online_${idx}_${sf.key}" data-section="online" data-row="${idx}" data-summary="${sf.key}" value="${sVal}"></td>`;
+          }
+          return `<td class="akt-col-summary" id="aktSum_online_${idx}_${sf.key}" style="${sumCss}">${sf.val ?? ''}</td>`;
+        }).join('');
+
+        const actionCell = isAdmin ? `
+          <td style="text-align:center;">
+            <button type="button" class="btn btn-icon btn-sm" onclick="clearAktivitasUserRow('online', ${idx})" title="Kosongkan Isian Harian ${safeName}">
+              <i class="fa-solid fa-eraser" style="color:#d97706;"></i>
+            </button>
+          </td>
+        ` : '';
+
+        return `
+          <tr>
+            <td class="akt-col-sticky" style="${nameCss}">${nameCell}</td>
+            ${dayCells}
+            ${sumCells}
+            ${actionCell}
+          </tr>
+        `;
+      }).join('');
+    }
+  }
+
+  // ==================== 2. RENDER AUX ====================
+  const aHdr = monthBucket.auxHeaderStyles || {};
+  const aDayHeaders = Array.from({ length: 31 }, (_, i) => {
+    const stCss = styleObjToInlineCss(aHdr.days && aHdr.days[i]);
+    return `<th style="${stCss}">${i + 1}</th>`;
+  }).join('');
+
+  if (UI.theadAktivitasAux) {
+    const aSumSt = aHdr.summaries || {};
+    UI.theadAktivitasAux.innerHTML = `
+      <tr>
+        <th class="akt-col-sticky" style="${styleObjToInlineCss(aHdr.name)}">AUX</th>
+        ${aDayHeaders}
+        <th class="akt-col-summary" style="${styleObjToInlineCss(aSumSt.total)}">TOTAL</th>
+        <th class="akt-col-summary" style="${styleObjToInlineCss(aSumSt.totalOmni)}">Total AUX</th>
+        <th class="akt-col-summary" style="${styleObjToInlineCss(aSumSt.hadir)}">JUMLAH KEHADIRAN</th>
+        <th class="akt-col-summary" style="${styleObjToInlineCss(aSumSt.penggunaanHarian)}">PENGGUNAAN HARIAN</th>
+        <th class="akt-col-summary" style="${styleObjToInlineCss(aSumSt.jmlUnder)}">JML UNDER</th>
+        <th class="akt-col-summary" style="${styleObjToInlineCss(aSumSt.jmlOver)}">JML OVER</th>
+        <th class="akt-col-summary" style="${styleObjToInlineCss(aSumSt.persen)}">%</th>
+        ${isAdmin ? '<th class="akt-col-summary" style="text-align:center;">AKSI</th>' : ''}
+      </tr>
+    `;
+  }
+
+  const filteredAux = auxDisplay.filter(({ row, user }) => {
+    if (!searchQ) return true;
+    const nameStr = String(row.name || (user && user.fullName) || '').toLowerCase();
+    return nameStr.includes(searchQ);
+  });
+
+  if (UI.badgeAktivitasAuxCount) {
+    UI.badgeAktivitasAuxCount.textContent = `${filteredAux.length} Petugas`;
+  }
+
+  if (UI.tbodyAktivitasAux) {
+    if (filteredAux.length === 0) {
+      const colSpan = isAdmin ? 40 : 39;
+      UI.tbodyAktivitasAux.innerHTML = `<tr><td colspan="${colSpan}" style="text-align:center; padding:24px; color:#555;">Tidak ada data user terdaftar yang cocok dengan pencarian.</td></tr>`;
+    } else {
+      UI.tbodyAktivitasAux.innerHTML = filteredAux.map(({ row, idx }) => {
+        const displayName = row.name || '-';
+        const safeName = String(displayName).replace(/"/g, '&quot;');
+        const nameCss = styleObjToInlineCss(row.nameStyle);
+        const nameCell = isAdmin
+          ? `<input type="text" class="aktivitas-cell-input akt-name-input" data-section="aux" data-row="${idx}" data-field="name" value="${safeName}">`
+          : `<span>${displayName}</span>`;
+
+        const dayCells = Array.from({ length: 31 }, (_, d) => {
+          const val = row.days && row.days[d] !== undefined ? row.days[d] : '';
+          const safeVal = String(val ?? '').replace(/"/g, '&quot;');
+          const cellSt = row.dayStyles && row.dayStyles[d] ? row.dayStyles[d] : null;
+          const cellCss = styleObjToInlineCss(cellSt);
+          const statusCls = (cellSt && cellSt.bg) ? '' : getAktivitasCellClass(val, 'aux');
+          if (isAdmin) {
+            return `<td class="akt-col-day ${statusCls}" id="aktCell_aux_${idx}_${d}" style="${cellCss}"><input type="text" class="aktivitas-cell-input" data-section="aux" data-row="${idx}" data-day="${d}" value="${safeVal}"></td>`;
+          }
+          return `<td class="akt-col-day ${statusCls}" style="${cellCss}">${val !== '' ? val : ''}</td>`;
+        }).join('');
+
+        const sumFields = [
+          { key: 'total', val: row.total ?? 0 },
+          { key: 'totalOmni', val: row.totalOmni ?? 0 },
+          { key: 'hadir', val: row.hadir ?? 0 },
+          { key: 'penggunaanHarian', val: row.penggunaanHarian ?? 0 },
+          { key: 'jmlUnder', val: row.jmlUnder ?? 0 },
+          { key: 'jmlOver', val: row.jmlOver ?? 0 },
+          { key: 'persen', val: formatAktivitasPercent(row.persen ?? '100%') }
+        ];
+
+        const sumCells = sumFields.map(sf => {
+          const sVal = String(sf.val ?? '').replace(/"/g, '&quot;');
+          const sumSt = row.sumStyles && row.sumStyles[sf.key] ? row.sumStyles[sf.key] : null;
+          const sumCss = styleObjToInlineCss(sumSt);
+          if (isAdmin) {
+            return `<td class="akt-col-summary" style="${sumCss}"><input type="text" class="aktivitas-cell-input akt-sum-input" id="aktSum_aux_${idx}_${sf.key}" data-section="aux" data-row="${idx}" data-summary="${sf.key}" value="${sVal}"></td>`;
+          }
+          return `<td class="akt-col-summary" id="aktSum_aux_${idx}_${sf.key}" style="${sumCss}">${sf.val ?? ''}</td>`;
+        }).join('');
+
+        const actionCell = isAdmin ? `
+          <td style="text-align:center;">
+            <button type="button" class="btn btn-icon btn-sm" onclick="clearAktivitasUserRow('aux', ${idx})" title="Kosongkan Isian Harian ${safeName}">
+              <i class="fa-solid fa-eraser" style="color:#d97706;"></i>
+            </button>
+          </td>
+        ` : '';
+
+        return `
+          <tr>
+            <td class="akt-col-sticky" style="${nameCss}">${nameCell}</td>
+            ${dayCells}
+            ${sumCells}
+            ${actionCell}
+          </tr>
+        `;
+      }).join('');
+    }
+  }
+}
+
+function handleAktivitasTableInput(e) {
+  const target = e.target;
+  if (!target || !target.classList || !target.classList.contains('aktivitas-cell-input')) return;
+  if (!state.isAdmin()) return;
+
+  const section = target.getAttribute('data-section');
+  const rowIdx = parseInt(target.getAttribute('data-row'), 10);
+  if (isNaN(rowIdx)) return;
+
+  const monthKey = getSelectedAktivitasMonth();
+  const { data, monthBucket } = getSyncedAktivitasMonthRows(monthKey);
+  const rows = section === 'online' ? monthBucket.onlineRows : monthBucket.auxRows;
+  if (!rows || !rows[rowIdx]) return;
+  const row = rows[rowIdx];
+
+  const field = target.getAttribute('data-field');
+  const dayAttr = target.getAttribute('data-day');
+  const sumAttr = target.getAttribute('data-summary');
+
+  if (field === 'name') {
+    row.name = target.value;
+  } else if (dayAttr !== null) {
+    const d = parseInt(dayAttr, 10);
+    if (!Array.isArray(row.days)) row.days = new Array(31).fill('');
+    row.days[d] = target.value.trim();
+
+    // Update cell color class in-place without losing focus
+    const td = document.getElementById(`aktCell_${section}_${rowIdx}_${d}`);
+    if (td) {
+      td.style.backgroundColor = '';
+      td.style.color = '';
+      td.className = `akt-col-day ${getAktivitasCellClass(row.days[d], section)}`;
+    }
+
+    // Recalculate summary columns and update DOM inputs in-place
+    if (section === 'online') {
+      recalcAktivitasOnlineRow(row);
+      const keys = ['total', 'totalActual', 'hadir', 'persentaseHadir', 'cuti', 'hadirCuti', 'sakit', 'persen'];
+      keys.forEach(k => {
+        const el = document.getElementById(`aktSum_online_${rowIdx}_${k}`);
+        if (el) el.value = row[k];
+      });
+    } else {
+      recalcAktivitasAuxRow(row);
+      const keys = ['total', 'totalOmni', 'hadir', 'penggunaanHarian', 'jmlUnder', 'jmlOver', 'persen'];
+      keys.forEach(k => {
+        const el = document.getElementById(`aktSum_aux_${rowIdx}_${k}`);
+        if (el) el.value = row[k];
+      });
+    }
+  } else if (sumAttr) {
+    const rawVal = target.value.trim();
+    if (sumAttr === 'persen' || sumAttr === 'persentaseHadir') {
+      row[sumAttr] = rawVal;
+    } else {
+      const numVal = Number(rawVal);
+      row[sumAttr] = (!isNaN(numVal) && rawVal !== '') ? numVal : rawVal;
+    }
+  }
+
+  data.updatedAt = new Date().toISOString();
+  state.saveAktivitasData(data);
+  triggerAutoSyncAktivitas();
+}
+
+function clearAktivitasUserRow(section, idx) {
+  if (!state.isAdmin()) return;
+  const monthKey = getSelectedAktivitasMonth();
+  const { data, monthBucket } = getSyncedAktivitasMonthRows(monthKey);
+  const rows = section === 'online' ? monthBucket.onlineRows : monthBucket.auxRows;
+  if (!rows || !rows[idx]) return;
+  rows[idx].days = new Array(31).fill('');
+  if (section === 'online') recalcAktivitasOnlineRow(rows[idx]);
+  else recalcAktivitasAuxRow(rows[idx]);
+  data.updatedAt = new Date().toISOString();
+  state.saveAktivitasData(data);
+  triggerAutoSyncAktivitas();
+  renderAktivitasPage();
+  showToast('Baris Dikosongkan', `Isian harian untuk <strong>${rows[idx].name}</strong> telah direset.`, 'info');
+}
+if (typeof window !== 'undefined') {
+  window.clearAktivitasUserRow = clearAktivitasUserRow;
+}
+
+function switchAktivitasTab(tab) {
+  aktivitasActiveTab = tab || 'ALL';
+  [UI.btnAktivitasTabAll, UI.btnAktivitasTabOnline, UI.btnAktivitasTabAux].forEach(btn => {
+    if (!btn) return;
+    btn.classList.toggle('active', btn.getAttribute('data-tab') === aktivitasActiveTab);
+  });
+  renderAktivitasPage();
+}
+
+function deleteAktivitasRow(section, idx) {
+  clearAktivitasUserRow(section, idx);
+}
+
+function resetAktivitasToDefault() {
+  if (!state.isAdmin()) return;
+  const monthKey = getSelectedAktivitasMonth();
+  const data = state.getAktivitasData();
+  if (!data.byMonth) data.byMonth = {};
+  data.byMonth[monthKey] = buildSeedRowsFromDefault();
+  data.updatedAt = new Date().toISOString();
+  state.saveAktivitasData(data);
+  triggerAutoSyncAktivitas();
+  renderAktivitasPage();
+  showToast('Data Direset', `Tabel Durasi Online & AUX periode ${formatMonthLabel(monthKey)} berhasil dikembalikan ke data awal.`, 'success');
+}
+
+function parseAktivitasSpreadsheetText(rawText) {
+  const lines = String(rawText || '').split(/\r?\n/);
+  const grid = [];
+  lines.forEach(line => {
+    if (!line.trim()) return;
+    const cols = line.includes('\t') ? line.split('\t') : parseCsvRow(line);
+    grid.push(cols.map(c => ({ val: String(c ?? '').trim(), displayVal: String(c ?? '').trim(), style: null })));
+  });
+  return parseAktivitasRichGrid(grid);
+}
+
+function exportAktivitasExcel() {
+  const monthKey = getSelectedAktivitasMonth();
+  const sheetRows = buildAktivitasSheet2DArray(monthKey);
+  const filename = `DRIVE_Aktivitas_Durasi_Online_AUX_${monthKey}_${new Date().toISOString().slice(0, 10)}.xlsx`;
+  if (typeof XLSX !== 'undefined' && XLSX.utils) {
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.aoa_to_sheet(sheetRows);
+    XLSX.utils.book_append_sheet(wb, ws, 'Aktivitas');
+    XLSX.writeFile(wb, filename);
+  } else {
+    const csvContent = 'data:text/csv;charset=utf-8,\uFEFF' + sheetRows.map(row => row.map(c => `"${String(c ?? '').replace(/"/g, '""')}"`).join(',')).join('\n');
+    const link = document.createElement('a');
+    link.setAttribute('href', encodeURI(csvContent));
+    link.setAttribute('download', filename.replace('.xlsx', '.csv'));
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  }
+  showToast('Download Berhasil', `Data Aktivitas (${formatMonthLabel(monthKey)}) berhasil diunduh.`, 'success');
+}
+
+function initAktivitasEvents() {
+  if (UI.tableAktivitasOnline) {
+    UI.tableAktivitasOnline.addEventListener('input', handleAktivitasTableInput);
+  }
+  if (UI.tableAktivitasAux) {
+    UI.tableAktivitasAux.addEventListener('input', handleAktivitasTableInput);
+  }
+  if (UI.filterAktivitasMonth) {
+    UI.filterAktivitasMonth.addEventListener('change', () => {
+      if (typeof saveUserControl === 'function') {
+        saveUserControl('filterAktivitasMonth', UI.filterAktivitasMonth.value);
+      }
+      renderAktivitasPage();
+    });
+  }
+  if (UI.searchAktivitasInput) {
+    UI.searchAktivitasInput.addEventListener('input', () => renderAktivitasPage());
+  }
+  if (UI.btnClearSearchAktivitas) {
+    UI.btnClearSearchAktivitas.addEventListener('click', () => {
+      if (UI.searchAktivitasInput) UI.searchAktivitasInput.value = '';
+      renderAktivitasPage();
+    });
+  }
+  if (UI.btnAktivitasTabAll) UI.btnAktivitasTabAll.addEventListener('click', () => switchAktivitasTab('ALL'));
+  if (UI.btnAktivitasTabOnline) UI.btnAktivitasTabOnline.addEventListener('click', () => switchAktivitasTab('ONLINE'));
+  if (UI.btnAktivitasTabAux) UI.btnAktivitasTabAux.addEventListener('click', () => switchAktivitasTab('AUX'));
+
+  if (UI.btnRefreshAktivitas) {
+    UI.btnRefreshAktivitas.addEventListener('click', () => {
+      renderAktivitasPage();
+      showToast('Data Disegarkan', 'Tabel Aktivitas Durasi Online & AUX berhasil diperbarui.', 'info');
+    });
+  }
+  if (UI.btnExportAktivitasExcel) {
+    UI.btnExportAktivitasExcel.addEventListener('click', exportAktivitasExcel);
+  }
+  if (UI.btnResetAktivitasDefault) {
+    UI.btnResetAktivitasDefault.addEventListener('click', resetAktivitasToDefault);
+  }
+
+  // Google Spreadsheet Listeners for Aktivitas
+  if (UI.btnAktivitasGSheetConfig) UI.btnAktivitasGSheetConfig.addEventListener('click', openAktivitasGSheetModal);
+  if (UI.btnCloseAktivitasGSheetModal) UI.btnCloseAktivitasGSheetModal.addEventListener('click', closeAktivitasGSheetModal);
+  if (UI.btnCancelAktivitasGSheetModal) UI.btnCancelAktivitasGSheetModal.addEventListener('click', closeAktivitasGSheetModal);
+  if (UI.tabBtnAktivitasGSheetConfig) UI.tabBtnAktivitasGSheetConfig.addEventListener('click', () => switchAktivitasGSheetTab('config'));
+  if (UI.tabBtnAktivitasGSheetGuide) UI.tabBtnAktivitasGSheetGuide.addEventListener('click', () => switchAktivitasGSheetTab('guide'));
+  if (UI.btnAktivitasGSheetSaveConfig) UI.btnAktivitasGSheetSaveConfig.addEventListener('click', saveAktivitasGSheetConfigHandler);
+  if (UI.btnAktivitasGSheetTest) UI.btnAktivitasGSheetTest.addEventListener('click', testAktivitasGSheetConnection);
+  if (UI.btnAktivitasGSheetPush) UI.btnAktivitasGSheetPush.addEventListener('click', pushAktivitasToGoogleSheets);
+  if (UI.btnAktivitasGSheetModalPush) UI.btnAktivitasGSheetModalPush.addEventListener('click', pushAktivitasToGoogleSheets);
+  if (UI.btnAktivitasGSheetPull) UI.btnAktivitasGSheetPull.addEventListener('click', pullAktivitasFromGoogleSheets);
+  if (UI.btnAktivitasGSheetModalPull) UI.btnAktivitasGSheetModalPull.addEventListener('click', pullAktivitasFromGoogleSheets);
+  if (UI.btnCopyAktivitasAppsScript) UI.btnCopyAktivitasAppsScript.addEventListener('click', copyAktivitasAppsScriptCode);
+  if (UI.modalAktivitasGoogleSheets) {
+    UI.modalAktivitasGoogleSheets.addEventListener('click', (e) => {
+      if (e.target === UI.modalAktivitasGoogleSheets) closeAktivitasGSheetModal();
+    });
+  }
+
+  // CSV / Rich HTML Clipboard Import Modal Listeners
+  if (UI.inputImportAktivitasCsv) {
+    UI.inputImportAktivitasCsv.addEventListener('paste', (e) => {
+      if (e.clipboardData && e.clipboardData.getData) {
+        const html = e.clipboardData.getData('text/html');
+        if (html && html.includes('<table')) {
+          aktivitasClipboardRichHtml = html;
+        } else {
+          aktivitasClipboardRichHtml = '';
+        }
+      }
+    });
+  }
+  if (UI.btnOpenImportAktivitasModal) {
+    UI.btnOpenImportAktivitasModal.addEventListener('click', () => {
+      if (!state.isAdmin()) return;
+      aktivitasClipboardRichHtml = '';
+      if (UI.modalImportAktivitas) UI.modalImportAktivitas.classList.remove('hidden');
+    });
+  }
+  if (UI.btnCloseImportAktivitasModal) {
+    UI.btnCloseImportAktivitasModal.addEventListener('click', () => {
+      if (UI.modalImportAktivitas) UI.modalImportAktivitas.classList.add('hidden');
+    });
+  }
+  if (UI.btnCancelImportAktivitasModal) {
+    UI.btnCancelImportAktivitasModal.addEventListener('click', () => {
+      if (UI.modalImportAktivitas) UI.modalImportAktivitas.classList.add('hidden');
+    });
+  }
+  if (UI.btnProcessImportAktivitas) {
+    UI.btnProcessImportAktivitas.addEventListener('click', () => {
+      if (!state.isAdmin()) return;
+      const raw = UI.inputImportAktivitasCsv ? UI.inputImportAktivitasCsv.value : '';
+      if (!raw.trim() && !aktivitasClipboardRichHtml) {
+        showToast('Input Kosong', 'Harap tempelkan data CSV/Spreadsheet terlebih dahulu.', 'warning');
+        return;
+      }
+      const monthKey = getSelectedAktivitasMonth();
+      let parsed = null;
+      if (aktivitasClipboardRichHtml) {
+        parsed = parseAktivitasHtmlClipboard(aktivitasClipboardRichHtml);
+      }
+      if (!parsed || (parsed.onlineRows.length === 0 && parsed.auxRows.length === 0)) {
+        parsed = parseAktivitasSpreadsheetText(raw);
+      }
+      applyPulledAktivitasRowsToMonth(monthKey, parsed);
+      triggerAutoSyncAktivitas();
+      aktivitasClipboardRichHtml = '';
+      if (UI.modalImportAktivitas) UI.modalImportAktivitas.classList.add('hidden');
+      renderAktivitasPage();
+      showToast('Import Berhasil', `Berhasil memperbarui data & tampilan Aktivitas bulan ${formatMonthLabel(monthKey)}.`, 'success');
+    });
+  }
+}
+
+if (typeof document !== 'undefined') {
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initAktivitasEvents);
+  } else {
+    initAktivitasEvents();
+  }
 }
 
 // ==========================================

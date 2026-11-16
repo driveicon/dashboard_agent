@@ -181,6 +181,12 @@
             </button>
           </li>
           <li class="nav-item">
+            <button class="nav-link" data-page="aktivitas" id="navAktivitas" data-tooltip="Aktivitas" title="Aktivitas">
+              <i class="fa-solid fa-calendar-check nav-icon"></i>
+              <span class="nav-label">Aktivitas</span>
+            </button>
+          </li>
+          <li class="nav-item">
             <button class="nav-link" data-page="update-pa" id="navUpdatePa" data-tooltip="Update PA" title="Update PA">
               <i class="fa-solid fa-clipboard-check nav-icon"></i>
               <span class="nav-label">Update PA</span>
@@ -844,6 +850,376 @@
               <p class="text-muted">Tidak ada perolehan performa yang dapat ditampilkan dalam grafik untuk filter terpilih.</p>
             </div>
 
+          </div>
+
+        </section>
+
+        <!-- ==================== PAGE AKTIVITAS: DURASI ONLINE & AUX ==================== -->
+        <section class="page-section" id="pageAktivitas">
+          <div class="page-title-bar">
+            <div>
+              <div class="badge-title-group" style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+                <h2 class="page-title">Aktivitas</h2>
+                <span class="badge badge-red-outline" id="aktivitasRoleBadge">
+                  <i class="fa-solid fa-pen-to-square"></i> Mode Edit Admin
+                </span>
+              </div>
+              <p class="page-desc" style="margin-top:4px; color:var(--gray-400); font-size:0.82rem;">
+                Rekapitulasi Durasi Online Harian (Tanggal 1 - 31), Kehadiran, Cuti, Sakit, dan Penggunaan Waktu AUX Omni Petugas CSO.
+              </p>
+            </div>
+            <div class="page-title-actions" style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+              <div class="month-filter-group" style="display:inline-flex; align-items:center; gap:8px;">
+                <label for="filterAktivitasMonth" style="font-size: calc(0.8rem * var(--content-font-scale, 1)); color:var(--gray-300); font-weight:600;"><i class="fa-regular fa-calendar text-red" style="margin-right:4px;"></i>Bulan:</label>
+                <select id="filterAktivitasMonth" class="filter-select" style="min-width: 160px; font-weight: 600;">
+                  <option value="ALL">Semua Bulan</option>
+                  <option value="2026-11">November 2026</option>
+                  <option value="2026-10" selected>Oktober 2026</option>
+                  <option value="2026-09">September 2026</option>
+                  <option value="2026-08">Agustus 2026</option>
+                  <option value="2026-07">Juli 2026</option>
+                </select>
+              </div>
+              <button class="btn btn-outline-gray" id="btnRefreshAktivitas" title="Segarkan Data Aktivitas">
+                <i class="fa-solid fa-arrows-rotate"></i>
+                <span>Segarkan</span>
+              </button>
+              <button class="btn btn-outline-green" id="btnExportAktivitasExcel" title="Download Data Aktivitas (Durasi Online &amp; AUX) ke Excel (.xlsx)">
+                <i class="fa-solid fa-file-excel"></i>
+                <span>Download Excel</span>
+              </button>
+              <button class="btn btn-outline-cyan" id="btnOpenImportAktivitasModal" title="Import / Tempel Data CSV dari Spreadsheet">
+                <i class="fa-solid fa-file-import"></i>
+                <span>Import CSV</span>
+              </button>
+              <button class="btn btn-outline-red" id="btnResetAktivitasDefault" title="Kembalikan ke Data Default Spreadsheet">
+                <i class="fa-solid fa-rotate-left"></i>
+                <span>Reset Default</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Role Permission & Guidance Banner -->
+          <div class="permission-status-banner glass-subpanel" id="aktivitasPermissionBanner" style="margin-bottom: 14px;">
+            <div class="status-banner-left">
+              <i class="fa-solid fa-shield-halved text-red" id="aktivitasBannerIcon"></i>
+              <div>
+                <strong id="aktivitasBannerTitle">Otoritas Akses: Administrator (Mode Edit Aktif)</strong>
+                <p id="aktivitasBannerDesc" style="margin:2px 0 0 0; font-size:0.8rem; color:var(--gray-300);">
+                  Anda dapat mengedit langsung nilai pada setiap sel tabel <strong>Durasi Online</strong> dan <strong>AUX</strong> untuk seluruh user terdaftar. Kolom Total, Kehadiran, Cuti, dan Persentase terhitung otomatis.
+                </p>
+              </div>
+            </div>
+            <span class="badge badge-admin" id="aktivitasBannerPill">FULL EDIT ACCESS</span>
+          </div>
+
+          <!-- Google Spreadsheet Integration Bar for Aktivitas -->
+          <div class="glass-subpanel gsheet-integration-bar" id="aktivitasGSheetSyncBar" style="margin-bottom: 16px;">
+            <div style="display:flex; align-items:center; gap:12px;">
+              <div class="gsheet-icon-bubble" style="width:38px; height:38px; border-radius:8px; background:rgba(16, 185, 129, 0.15); display:flex; align-items:center; justify-content:center; color:#10b981; font-size: calc(1.2rem * var(--content-font-scale, 1));">
+                <i class="fa-solid fa-table-cells"></i>
+              </div>
+              <div>
+                <div style="display:flex; align-items:center; gap:8px;">
+                  <strong style="color:#fff; font-size: calc(0.88rem * var(--content-font-scale, 1));">Integrasi Google Spreadsheet</strong>
+                  <span class="badge" id="aktivitasGSheetStatusBadge" style="font-size: calc(0.7rem * var(--content-font-scale, 1)); padding:2px 8px; border-radius:4px; background:rgba(100,116,139,0.2); color:#94a3b8; border:1px solid rgba(100,116,139,0.3);">Belum Dikonfigurasi</span>
+                </div>
+                <div style="font-size: calc(0.75rem * var(--content-font-scale, 1)); color:var(--gray-400); margin-top:2px;" id="aktivitasGSheetStatusInfo">
+                  Data Aktivitas (Durasi Online &amp; AUX) dapat disinkronkan dua arah dengan Google Spreadsheet.
+                </div>
+              </div>
+            </div>
+            <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+              <a href="#" target="_blank" class="btn btn-outline-gray btn-sm hidden" id="btnAktivitasGSheetOpenLink" title="Buka Google Spreadsheet di Tab Baru">
+                <i class="fa-solid fa-arrow-up-right-from-square"></i>
+                <span>Buka Sheet</span>
+              </a>
+              <button type="button" class="btn btn-outline-cyan btn-sm" id="btnAktivitasGSheetPull" title="Tarik data terbaru dari Google Spreadsheet ke Dashboard">
+                <i class="fa-solid fa-cloud-arrow-down"></i>
+                <span>Tarik Data</span>
+              </button>
+              <button type="button" class="btn btn-outline-green btn-sm" id="btnAktivitasGSheetPush" title="Kirim seluruh data Aktivitas saat ini ke Google Spreadsheet">
+                <i class="fa-solid fa-cloud-arrow-up"></i>
+                <span>Kirim ke Sheets</span>
+              </button>
+              <button type="button" class="btn btn-outline-gray btn-sm" id="btnAktivitasGSheetConfig" title="Buka pengaturan koneksi dan panduan script">
+                <i class="fa-solid fa-gear"></i>
+                <span>Pengaturan &amp; Script</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Filter & Section Switcher Toolbar -->
+          <div class="table-toolbar glass-panel" style="flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; margin-bottom: 16px;">
+            <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap; flex:1; min-width:260px;">
+              <div class="toolbar-search" style="max-width: 320px; width: 100%;">
+                <i class="fa-solid fa-magnifying-glass search-icon"></i>
+                <input type="text" id="searchAktivitasInput" class="search-input" placeholder="Cari nama petugas CSO...">
+                <button class="btn-clear-search hidden" id="btnClearSearchAktivitas" aria-label="Bersihkan pencarian">
+                  <i class="fa-solid fa-xmark"></i>
+                </button>
+              </div>
+
+              <!-- View Filter Tabs: Semua / Durasi Online / AUX -->
+              <div class="ca-sort-segmented-group" style="display: inline-flex; background: rgba(15, 20, 30, 0.7); padding: 3px; border-radius: var(--radius-sm); border: 1px solid var(--border-color);">
+                <button type="button" class="btn btn-sm btn-sort-direction active" id="btnAktivitasTabAll" data-tab="ALL">
+                  <i class="fa-solid fa-layer-group text-red" style="margin-right:4px;"></i>
+                  <span>Semua Tabel</span>
+                </button>
+                <button type="button" class="btn btn-sm btn-sort-direction" id="btnAktivitasTabOnline" data-tab="ONLINE">
+                  <i class="fa-solid fa-clock text-green" style="margin-right:4px;"></i>
+                  <span>Durasi Online</span>
+                </button>
+                <button type="button" class="btn btn-sm btn-sort-direction" id="btnAktivitasTabAux" data-tab="AUX">
+                  <i class="fa-solid fa-mug-hot text-yellow" style="margin-right:4px;"></i>
+                  <span>AUX</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Legend Indikator Kode -->
+            <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; font-size:0.75rem;">
+              <span class="badge badge-yellow" style="font-size:0.72rem;"><strong>L</strong> = Libur</span>
+              <span class="badge badge-blue" style="font-size:0.72rem;"><strong>CUTI</strong> = Cuti</span>
+              <span class="badge badge-red" style="font-size:0.72rem;"><strong>CTSK / SAKIT</strong> = Sakit</span>
+              <span class="badge badge-gray" style="font-size:0.72rem;"><i class="fa-solid fa-calculator text-green" style="margin-right:3px;"></i>Auto-Kalkulasi Aktif</span>
+            </div>
+          </div>
+
+          <!-- ==================== TABEL 1: DURASI ONLINE ==================== -->
+          <div class="glass-panel aktivitas-sheet-panel" id="sectionAktivitasOnline" style="margin-bottom: 24px; padding: 16px; border-radius: 12px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:12px;">
+              <div style="display:flex; align-items:center; gap:10px;">
+                <div style="width:36px; height:36px; border-radius:8px; background:rgba(16, 185, 129, 0.15); border:1px solid rgba(16, 185, 129, 0.35); display:flex; align-items:center; justify-content:center; color:#10b981;">
+                  <i class="fa-solid fa-user-clock"></i>
+                </div>
+                <div>
+                  <h3 style="font-size:1.02rem; font-weight:800; color:#fff; margin:0; letter-spacing:0.4px; display:flex; align-items:center; gap:8px;">
+                    <span>DURASI ONLINE</span>
+                    <span class="badge badge-green" id="badgeAktivitasOnlineCount" style="font-size:0.72rem;">14 Petugas</span>
+                  </h3>
+                </div>
+              </div>
+              <div id="aktivitasOnlineAdminActions">
+                <span class="badge badge-gray" style="font-size:0.72rem;"><i class="fa-solid fa-users text-green" style="margin-right:4px;"></i>Terhubung Data User Terdaftar</span>
+              </div>
+            </div>
+
+            <div class="table-responsive aktivitas-table-scroll">
+              <table class="custom-table aktivitas-sheet-table" id="tableAktivitasOnline">
+                <thead id="theadAktivitasOnline">
+                  <!-- Rendered dynamically with columns: DURASI ONLINE, 1..31, TOTAL, TOTAL JAM ONLINE ACTUAL, JUMLAH KEHADIRAN, PRESENTASE KEHADIRAN, CUTI, HADIR+CUTI, SAKIT, % -->
+                </thead>
+                <tbody id="tbodyAktivitasOnline">
+                  <!-- Rendered dynamically -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- ==================== TABEL 2: AUX ==================== -->
+          <div class="glass-panel aktivitas-sheet-panel" id="sectionAktivitasAux" style="padding: 16px; border-radius: 12px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:12px;">
+              <div style="display:flex; align-items:center; gap:10px;">
+                <div style="width:36px; height:36px; border-radius:8px; background:rgba(245, 158, 11, 0.15); border:1px solid rgba(245, 158, 11, 0.35); display:flex; align-items:center; justify-content:center; color:#f59e0b;">
+                  <i class="fa-solid fa-stopwatch"></i>
+                </div>
+                <div>
+                  <h3 style="font-size:1.02rem; font-weight:800; color:#fff; margin:0; letter-spacing:0.4px; display:flex; align-items:center; gap:8px;">
+                    <span>AUX</span>
+                    <span class="badge badge-yellow" id="badgeAktivitasAuxCount" style="font-size:0.72rem;">14 Petugas</span>
+                  </h3>
+                </div>
+              </div>
+              <div id="aktivitasAuxAdminActions">
+                <span class="badge badge-gray" style="font-size:0.72rem;"><i class="fa-solid fa-users text-yellow" style="margin-right:4px;"></i>Terhubung Data User Terdaftar</span>
+              </div>
+            </div>
+
+            <div class="table-responsive aktivitas-table-scroll">
+              <table class="custom-table aktivitas-sheet-table" id="tableAktivitasAux">
+                <thead id="theadAktivitasAux">
+                  <!-- Rendered dynamically with columns: AUX, 1..31, TOTAL, TOTAL AUX OMNI, JUMLAH KEHADIRAN, PENGGUNAAN HARIAN, JML UNDER, JML OVER, % -->
+                </thead>
+                <tbody id="tbodyAktivitasAux">
+                  <!-- Rendered dynamically -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Modal Google Spreadsheet Integration for Aktivitas -->
+          <div class="modal-backdrop hidden" id="modalAktivitasGoogleSheets">
+            <div class="modal-dialog glass-panel" style="max-width: 650px;">
+              <div class="modal-header">
+                <div class="modal-title-group">
+                  <div class="modal-icon-badge" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); color:#ffffff;">
+                    <i class="fa-solid fa-table-cells"></i>
+                  </div>
+                  <div>
+                    <h3 class="modal-title">Integrasi Google Spreadsheet (Aktivitas)</h3>
+                    <p class="modal-subtitle" style="color:var(--gray-400); font-size: calc(0.8rem * var(--content-font-scale, 1)); margin-top:2px;">Sinkronisasi data Durasi Online &amp; AUX dengan Google Sheets</p>
+                  </div>
+                </div>
+                <button type="button" class="modal-close-btn" id="btnCloseAktivitasGSheetModal" aria-label="Tutup Modal">
+                  <i class="fa-solid fa-xmark"></i>
+                </button>
+              </div>
+
+              <div class="modal-body" style="padding-top:14px;">
+                <div class="gsheet-tabs-nav">
+                  <button type="button" class="gsheet-tab-btn active" id="tabBtnAktivitasGSheetConfig">
+                    <i class="fa-solid fa-sliders"></i>
+                    <span>Pengaturan Koneksi</span>
+                  </button>
+                  <button type="button" class="gsheet-tab-btn" id="tabBtnAktivitasGSheetGuide">
+                    <i class="fa-solid fa-code"></i>
+                    <span>Panduan &amp; Script Apps Script</span>
+                  </button>
+                </div>
+
+                <!-- Tab 1: Config Content -->
+                <div id="tabContentAktivitasGSheetConfig">
+                  <div class="form-group" style="margin-bottom:14px;">
+                    <label for="inputAktivitasGSheetWebAppUrl" class="form-label" style="font-weight:600; display:flex; justify-content:space-between; align-items:center;">
+                      <span>URL Web App Google Apps Script <span class="required">*</span></span>
+                      <small style="color:#10b981; font-weight:normal;"><i class="fa-solid fa-bolt"></i> Endpoint 2-Arah</small>
+                    </label>
+                    <div class="input-with-icon">
+                      <i class="fa-solid fa-link input-icon"></i>
+                      <input type="url" id="inputAktivitasGSheetWebAppUrl" class="form-control" placeholder="https://script.google.com/macros/s/AKfycb.../exec">
+                    </div>
+                    <small class="form-hint" style="color:var(--gray-400); font-size: calc(0.75rem * var(--content-font-scale, 1));">URL deployment Web App dari Apps Script Google Spreadsheet Anda (akses: Anyone).</small>
+                  </div>
+
+                  <div class="form-group" style="margin-bottom:14px;">
+                    <label for="inputAktivitasGSheetUrl" class="form-label" style="font-weight:600;">URL / ID Google Spreadsheet</label>
+                    <div class="input-with-icon">
+                      <i class="fa-solid fa-file-excel input-icon text-green"></i>
+                      <input type="text" id="inputAktivitasGSheetUrl" class="form-control" placeholder="https://docs.google.com/spreadsheets/d/1BxiMVs.../edit atau ID Spreadsheet">
+                    </div>
+                    <small class="form-hint" style="color:var(--gray-400); font-size: calc(0.75rem * var(--content-font-scale, 1));">Digunakan untuk tombol langsung 'Buka Sheet' atau tarik CSV publik langsung dari Google Spreadsheet.</small>
+                  </div>
+
+                  <div class="form-row" style="margin-bottom:14px;">
+                    <div class="form-group flex-1">
+                      <label for="inputAktivitasGSheetTabName" class="form-label" style="font-weight:600;">Nama Tab / Sheet</label>
+                      <input type="text" id="inputAktivitasGSheetTabName" class="form-control" value="Aktivitas_Data" placeholder="Aktivitas_Data">
+                    </div>
+                    <div class="form-group flex-1" style="display:flex; flex-direction:column; justify-content:center;">
+                      <label class="form-label" style="font-weight:600;">Sinkronisasi Otomatis</label>
+                      <label style="display:inline-flex; align-items:center; gap:8px; cursor:pointer; margin-top:6px; font-size: calc(0.84rem * var(--content-font-scale, 1)); color:var(--gray-200);">
+                        <input type="checkbox" id="checkAktivitasGSheetAutoSync" checked style="width:18px; height:18px; accent-color:#10b981;">
+                        <span>Auto-Sync saat edit sel Aktivitas</span>
+                      </label>
+                    </div>
+                  </div>
+
+                  <!-- Status Callout -->
+                  <div id="boxAktivitasGSheetStatusDetail" style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); border-radius:8px; padding:12px 14px; margin-bottom:16px;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; font-size: calc(0.8rem * var(--content-font-scale, 1)); margin-bottom:6px;">
+                      <span style="color:var(--gray-400);">Status Koneksi:</span>
+                      <strong id="labelAktivitasGSheetModalStatus" style="color:var(--gray-300);">Belum Dikonfigurasi</strong>
+                    </div>
+                    <div style="display:flex; justify-content:space-between; align-items:center; font-size: calc(0.8rem * var(--content-font-scale, 1)); margin-bottom:6px;">
+                      <span style="color:var(--gray-400);">Terakhir Sinkron:</span>
+                      <span id="labelAktivitasGSheetModalLastSync" style="color:var(--gray-300);">-</span>
+                    </div>
+                    <div style="display:flex; justify-content:space-between; align-items:center; font-size: calc(0.8rem * var(--content-font-scale, 1));">
+                      <span style="color:var(--gray-400);">Total User Terdaftar di Aktivitas:</span>
+                      <span id="labelAktivitasGSheetModalTotalCount" style="color:var(--gray-300);">0 Petugas</span>
+                    </div>
+                  </div>
+
+                  <!-- Action Buttons -->
+                  <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+                    <div style="display:flex; gap:8px;">
+                      <button type="button" class="btn btn-outline-gray btn-sm" id="btnAktivitasGSheetTest">
+                        <i class="fa-solid fa-satellite-dish"></i>
+                        <span>Test Koneksi</span>
+                      </button>
+                      <a href="#" target="_blank" class="btn btn-outline-gray btn-sm hidden" id="btnAktivitasGSheetModalOpenLink">
+                        <i class="fa-solid fa-arrow-up-right-from-square"></i>
+                        <span>Buka Sheet</span>
+                      </a>
+                    </div>
+                    <div style="display:flex; gap:8px;">
+                      <button type="button" class="btn btn-outline-cyan btn-sm" id="btnAktivitasGSheetModalPull">
+                        <i class="fa-solid fa-cloud-arrow-down"></i>
+                        <span>Tarik Data</span>
+                      </button>
+                      <button type="button" class="btn btn-outline-green btn-sm" id="btnAktivitasGSheetModalPush">
+                        <i class="fa-solid fa-cloud-arrow-up"></i>
+                        <span>Kirim ke Sheets</span>
+                      </button>
+                      <button type="button" class="btn btn-primary btn-sm" id="btnAktivitasGSheetSaveConfig" style="background:#10b981; border-color:#059669;">
+                        <i class="fa-solid fa-floppy-disk"></i>
+                        <span>Simpan Pengaturan</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Tab 2: Guide & Apps Script -->
+                <div id="tabContentAktivitasGSheetGuide" class="hidden">
+                  <div style="font-size: calc(0.82rem * var(--content-font-scale, 1)); color:var(--gray-300); margin-bottom:12px; line-height:1.5;">
+                    Ikuti 4 langkah mudah untuk menghubungkan Google Spreadsheet Aktivitas (Durasi Online &amp; AUX):
+                  </div>
+                  <ol style="font-size: calc(0.8rem * var(--content-font-scale, 1)); color:var(--gray-300); padding-left:18px; margin-bottom:14px; line-height:1.6;">
+                    <li>Buka atau buat Spreadsheet di <strong>Google Drive</strong>.</li>
+                    <li>Klik menu <strong>Ekstensi (Extensions)</strong> &gt; <strong>Apps Script</strong>.</li>
+                    <li>Hapus isi file <code>Code.gs</code>, lalu tempel kode script di bawah ini.</li>
+                    <li>Klik <strong>Deploy</strong> &gt; <strong>New deployment</strong> &gt; pilih tipe <strong>Web app</strong> (Execute as: <strong>Me</strong>, Who has access: <strong>Anyone</strong>). Salin URL Web App ke tab <em>Pengaturan Koneksi</em>.</li>
+                  </ol>
+                  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+                    <span style="font-size: calc(0.78rem * var(--content-font-scale, 1)); font-weight:600; color:var(--gray-300);"><i class="fa-solid fa-code text-green"></i> Kode Script (Code.gs)</span>
+                    <button type="button" class="btn btn-outline-green btn-sm" id="btnCopyAktivitasAppsScript" style="padding:2px 10px; font-size: calc(0.74rem * var(--content-font-scale, 1));">
+                      <i class="fa-regular fa-copy"></i>
+                      <span>Salin Script</span>
+                    </button>
+                  </div>
+                  <pre id="codeAktivitasAppsScript" class="code-preview-box"></pre>
+                </div>
+              </div>
+
+              <div class="modal-footer" style="padding-top:10px;">
+                <button type="button" class="btn btn-outline-gray" id="btnCancelAktivitasGSheetModal">Tutup</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Modal Import / Paste Spreadsheet for Aktivitas (Admin Only) -->
+          <div class="modal-backdrop hidden" id="modalImportAktivitas">
+            <div class="modal-dialog glass-panel" style="max-width: 720px;">
+              <div class="modal-header">
+                <div class="modal-title-group">
+                  <div class="modal-icon-badge bg-red-gradient">
+                    <i class="fa-solid fa-file-csv"></i>
+                  </div>
+                  <div>
+                    <h3 class="modal-title">Import / Tempel Data Spreadsheet Aktivitas</h3>
+                    <p class="modal-subtitle">Tempelkan (Paste) format CSV / TSV dari Excel atau Google Spreadsheet untuk memperbarui tabel Durasi Online &amp; AUX</p>
+                  </div>
+                </div>
+                <button type="button" class="modal-close-btn" id="btnCloseImportAktivitasModal" aria-label="Tutup Modal">
+                  <i class="fa-solid fa-xmark"></i>
+                </button>
+              </div>
+              <div class="modal-body">
+                <div class="form-group">
+                  <label for="inputImportAktivitasCsv" class="form-label">Data CSV / Spreadsheet (Durasi Online &amp; AUX)</label>
+                  <textarea id="inputImportAktivitasCsv" class="form-control font-mono" rows="10" style="font-size:0.78rem;" placeholder="Tempelkan teks CSV atau salinan tabel DURASI ONLINE dan AUX di sini..."></textarea>
+                  <small class="form-hint">Mendukung pemisah koma (CSV) maupun tab (copy-paste langsung dari sel Excel / Google Sheets).</small>
+                </div>
+              </div>
+              <div class="modal-footer">
+                <button type="button" class="btn btn-outline-gray" id="btnCancelImportAktivitasModal">Batal</button>
+                <button type="button" class="btn btn-primary glow-effect-red" id="btnProcessImportAktivitas">
+                  <i class="fa-solid fa-check"></i>
+                  <span>Proses &amp; Simpan Data</span>
+                </button>
+              </div>
+            </div>
           </div>
 
         </section>
@@ -6152,6 +6528,18 @@
         <div class="modal-body">
           <div class="form-row">
             <div class="form-group flex-1">
+              <label for="formFindingInputId" class="form-label">ID Temuan</label>
+              <input type="text" id="formFindingInputId" class="form-control" placeholder="Masukkan ID Temuan (Contoh: FND-2026-001)">
+            </div>
+
+            <div class="form-group flex-1">
+              <label for="formFindingDate" class="form-label">Tanggal Temuan <span class="required">*</span></label>
+              <input type="date" id="formFindingDate" class="form-control" required>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group flex-1">
               <label for="formFindingUser" class="form-label">Petugas CSO <span class="required">*</span></label>
               <select id="formFindingUser" class="form-control" required>
                 <!-- Populated dynamically with all users from Manajemen Team -->
@@ -6170,11 +6558,6 @@
                 <option value="CSO EMAIL">CSO EMAIL</option>
                 <option value="TEAM LEADER">TEAM LEADER</option>
               </select>
-            </div>
-
-            <div class="form-group flex-1">
-              <label for="formFindingDate" class="form-label">Tanggal Temuan <span class="required">*</span></label>
-              <input type="date" id="formFindingDate" class="form-control" required>
             </div>
           </div>
 

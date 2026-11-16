@@ -10385,3 +10385,151 @@ body.theme-light .overview-chart-card:hover {
 #clockSessionCard {
   display: none !important;
 }
+
+/* ==========================================================================
+   AKTIVITAS SPREADSHEET TABLES (DURASI ONLINE & AUX - AUTHENTIC GOOGLE SHEETS STYLE)
+   ========================================================================== */
+.aktivitas-table-scroll {
+  overflow-x: auto;
+  overflow-y: visible;
+  border: 1px solid #999999;
+  border-radius: 4px;
+  background: #ffffff;
+}
+
+.aktivitas-sheet-table {
+  width: max-content;
+  min-width: 100%;
+  border-collapse: collapse;
+  border-spacing: 0;
+  background-color: #ffffff;
+  color: #000000;
+  font-family: Arial, Calibri, "Segoe UI", sans-serif;
+  font-size: calc(11px * var(--content-font-scale, 1));
+}
+
+.aktivitas-sheet-table th,
+.aktivitas-sheet-table td {
+  border: 1px solid #c0c0c0;
+  padding: 3px 6px !important;
+  white-space: nowrap;
+  vertical-align: middle;
+  background-color: #ffffff;
+  color: #000000;
+  font-family: Arial, Calibri, "Segoe UI", sans-serif;
+  line-height: 1.35;
+}
+
+.aktivitas-sheet-table thead th {
+  background-color: #d9ead3;
+  color: #000000;
+  font-weight: 700;
+  text-align: center;
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  font-size: calc(11px * var(--content-font-scale, 1));
+  border: 1px solid #999999;
+}
+
+.aktivitas-sheet-table th.akt-col-sticky,
+.aktivitas-sheet-table td.akt-col-sticky {
+  position: sticky;
+  left: 0;
+  z-index: 4;
+  background-color: #ffffff;
+  color: #000000;
+  min-width: 210px;
+  max-width: 245px;
+  text-align: left;
+  font-weight: 400;
+  border-right: 2px solid #808080;
+}
+
+.aktivitas-sheet-table thead th.akt-col-sticky {
+  z-index: 5;
+  background-color: #d9ead3;
+  color: #000000;
+  font-weight: 700;
+  text-align: center;
+}
+
+.aktivitas-sheet-table tbody tr:hover td {
+  filter: brightness(0.97);
+}
+
+.aktivitas-sheet-table th.akt-col-summary {
+  background-color: #d9ead3;
+  color: #000000;
+  font-weight: 700;
+}
+
+.aktivitas-sheet-table td.akt-col-summary {
+  background-color: #ffffff;
+  color: #000000;
+  text-align: right;
+  font-family: Arial, Calibri, "Segoe UI", sans-serif;
+}
+
+.aktivitas-sheet-table td.akt-col-day {
+  min-width: 52px;
+  text-align: center;
+  font-family: Arial, Calibri, "Segoe UI", sans-serif;
+}
+
+.aktivitas-cell-input {
+  width: 100%;
+  min-width: 46px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 0;
+  color: inherit;
+  font-family: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+  font-style: inherit;
+  text-align: inherit;
+  padding: 1px 2px;
+  outline: none;
+}
+
+.aktivitas-cell-input.akt-name-input {
+  text-align: left;
+  min-width: 190px;
+}
+
+.aktivitas-cell-input.akt-sum-input {
+  text-align: right;
+  min-width: 64px;
+}
+
+.aktivitas-cell-input:focus {
+  border: 2px solid #1a73e8;
+  background: rgba(255, 255, 255, 0.92);
+  color: #000000;
+}
+
+/* Default Spreadsheet Block Colors (Overridden automatically if Google Sheet provides inline cell style) */
+.aktivitas-sheet-table td.akt-cell-libur {
+  background-color: #ff0000;
+  color: #000000;
+  font-weight: 700;
+}
+
+.aktivitas-sheet-table td.akt-cell-cuti {
+  background-color: #ffff00;
+  color: #000000;
+  font-weight: 700;
+}
+
+.aktivitas-sheet-table td.akt-cell-sakit {
+  background-color: #00ffff;
+  color: #000000;
+  font-weight: 700;
+}
+
+.aktivitas-sheet-table td.akt-cell-over {
+  background-color: #f4cccc;
+  color: #cc0000;
+  font-weight: 700;
+}
