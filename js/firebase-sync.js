@@ -239,7 +239,7 @@
                 deletedIds: [...this.getDeletedIds(key)],
                 updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
                 updatedBy: 'Unload_Sync'
-              }, { merge: true });
+              });
             }
           } catch (e) { }
         }
@@ -697,6 +697,19 @@
               } catch (e) {
                 console.debug(`Error in realtime ${key} merge:`, e);
               }
+            } else if (key === 'vortex_aktivitas_data' && currentLocalRaw) {
+              try {
+                const localObj = JSON.parse(currentLocalRaw);
+                const remoteObj = docData.payload || {};
+                const lVer = Number(localObj && localObj._isolationVersion) || 0;
+                const rVer = Number(remoteObj && remoteObj._isolationVersion) || 0;
+                const lTime = localObj && localObj.updatedAt ? new Date(localObj.updatedAt).getTime() : 0;
+                const rTime = remoteObj && remoteObj.updatedAt ? new Date(remoteObj.updatedAt).getTime() : 0;
+                if (lVer > rVer || (lVer === rVer && lTime > rTime)) {
+                  finalPayload = localObj;
+                  this.notifyDataChanged(key, finalPayload, true);
+                }
+              } catch (e) {}
             }
 
             const finalRaw = JSON.stringify(finalPayload);
@@ -921,7 +934,7 @@
             actionTimestamp: Date.now(),
             updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
             updatedBy: username
-          }, { merge: true });
+          });
 
           this.lastSyncTime = new Date();
           this.updateStatusBadge('online', 'Terhubung ke Cloud (Realtime)');
@@ -985,7 +998,7 @@
                 actionTimestamp: Date.now(),
                 updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
                 updatedBy: username
-              }, { merge: true });
+              });
               totalKeys++;
             } catch (e) {
               console.warn(`Gagal parse JSON untuk ${key}:`, e);
@@ -1062,6 +1075,24 @@
               } catch (e) {
                 console.warn(`Gagal merge data untuk ${key} saat sync:`, e);
               }
+            } else if (key === 'vortex_aktivitas_data') {
+              try {
+                const localRaw = localStorage.getItem(key);
+                if (localRaw) {
+                  const localObj = JSON.parse(localRaw);
+                  const remoteObj = data.payload || {};
+                  const lVer = Number(localObj && localObj._isolationVersion) || 0;
+                  const rVer = Number(remoteObj && remoteObj._isolationVersion) || 0;
+                  const lTime = localObj && localObj.updatedAt ? new Date(localObj.updatedAt).getTime() : 0;
+                  const rTime = remoteObj && remoteObj.updatedAt ? new Date(remoteObj.updatedAt).getTime() : 0;
+                  if (lVer > rVer || (lVer === rVer && lTime > rTime)) {
+                    finalPayload = localObj;
+                    setTimeout(() => {
+                      this.notifyDataChanged(key, finalPayload, true);
+                    }, 200);
+                  }
+                }
+              } catch (e) {}
             }
 
             localStorage.setItem(key, JSON.stringify(finalPayload));

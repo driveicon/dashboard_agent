@@ -856,12 +856,48 @@ class AppState {
     const raw = this.safeGetStorage('vortex_aktivitas_data', null);
     if (raw && typeof raw === 'object' && (Array.isArray(raw.onlineRows) || (raw.byMonth && typeof raw.byMonth === 'object'))) {
       if (!raw.byMonth || typeof raw.byMonth !== 'object') {
-        raw.byMonth = {
-          '2026-10': {
-            onlineRows: Array.isArray(raw.onlineRows) ? raw.onlineRows : [],
-            auxRows: Array.isArray(raw.auxRows) ? raw.auxRows : []
-          }
+        raw.byMonth = {};
+      }
+      if (raw._isolationVersion !== 6) {
+        // Isolasi data per bulan: simpan hanya pada 1 bulan aktif/tarikan terakhir dan bersihkan duplikat di bulan lain
+        const currentFilterMonth = (typeof getUserControlValue === 'function' ? getUserControlValue('filterAktivitasMonth', '') : '');
+        const targetM = (raw.lastPulledMonth && raw.lastPulledMonth !== 'ALL')
+          ? raw.lastPulledMonth
+          : ((currentFilterMonth && currentFilterMonth !== 'ALL') ? currentFilterMonth : '2026-10');
+        const activeBucket = raw.byMonth[targetM] || raw.byMonth['2026-10'] || raw.byMonth['2026-11'] || raw.byMonth['2026-09'] || raw.byMonth['ALL'] || {
+          onlineRows: Array.isArray(raw.onlineRows) ? raw.onlineRows : [],
+          auxRows: Array.isArray(raw.auxRows) ? raw.auxRows : []
         };
+        activeBucket._isPulledOrEdited = true;
+        if (typeof enrichAktivitasBucketStyles === 'function') {
+          enrichAktivitasBucketStyles(activeBucket);
+        }
+        raw.byMonth = {
+          [targetM]: activeBucket
+        };
+        raw.lastPulledMonth = targetM;
+        raw._isolationVersion = 6;
+        raw.updatedAt = new Date().toISOString();
+        delete raw.onlineRows;
+        delete raw.auxRows;
+        this.safeSetStorage('vortex_aktivitas_data', raw);
+      } else {
+        let cleaned = false;
+        if (raw.onlineRows !== undefined) { delete raw.onlineRows; cleaned = true; }
+        if (raw.auxRows !== undefined) { delete raw.auxRows; cleaned = true; }
+        if (raw.byMonth['ALL']) { delete raw.byMonth['ALL']; cleaned = true; }
+        Object.keys(raw.byMonth).forEach(mKey => {
+          const b = raw.byMonth[mKey];
+          if (!b || !b._isPulledOrEdited) {
+            delete raw.byMonth[mKey];
+            cleaned = true;
+          } else if (typeof enrichAktivitasBucketStyles === 'function') {
+            if (enrichAktivitasBucketStyles(b)) cleaned = true;
+          }
+        });
+        if (cleaned) {
+          this.safeSetStorage('vortex_aktivitas_data', raw);
+        }
       }
       return raw;
     }
@@ -1652,7 +1688,7 @@ function getAvailableMonthList() {
 
 const DYNAMIC_MONTH_FILTER_CONFIGS = [
   { id: 'filterOverviewMonth', pageKey: 'overview', defaultVal: '2026-09' },
-  { id: 'filterAktivitasMonth', pageKey: 'aktivitas', defaultVal: '2026-10' },
+  { id: 'filterAktivitasMonth', pageKey: 'aktivitas', defaultVal: '2026-10', noAllOption: true },
   { id: 'filterPaMonth', pageKey: 'update-pa', defaultVal: '2026-09' },
   { id: 'filterCaMonth', pageKey: 'ca', defaultVal: '2026-10' },
   { id: 'filterTiketMonth', pageKey: 'tiket', defaultVal: '2026-10' },
@@ -1663,14 +1699,15 @@ const DYNAMIC_MONTH_FILTER_CONFIGS = [
 
 function updateDynamicMonthDropdowns() {
   const months = getAvailableMonthList();
-  const desiredOptions = [
-    { value: 'ALL', label: 'Semua Bulan' },
-    ...months.map(m => ({ value: m, label: formatMonthLabel(m) }))
-  ];
+  const baseMonthOptions = months.map(m => ({ value: m, label: formatMonthLabel(m) }));
 
   DYNAMIC_MONTH_FILTER_CONFIGS.forEach(cfg => {
     const el = (UI && UI[cfg.id]) || document.getElementById(cfg.id);
     if (!el) return;
+
+    const desiredOptions = cfg.noAllOption
+      ? baseMonthOptions
+      : [{ value: 'ALL', label: 'Semua Bulan' }, ...baseMonthOptions];
 
     // Check if select options already match exactly
     const curOptions = el.options ? Array.from(el.options) : [];
@@ -1689,6 +1726,8 @@ function updateDynamicMonthDropdowns() {
       const prefVal = typeof getUserControlValue === 'function' ? getUserControlValue(cfg.id, cfg.defaultVal) : cfg.defaultVal;
       if (desiredOptions.some(opt => opt.value === prefVal)) {
         el.value = prefVal;
+      } else if (desiredOptions.some(opt => opt.value === cfg.defaultVal)) {
+        el.value = cfg.defaultVal;
       } else {
         el.value = months[0] || cfg.defaultVal;
       }
@@ -25328,25 +25367,255 @@ function jsonResponse(obj) {
 function formatAktivitasPercent(val) {
   if (val === null || val === undefined || val === '') return '0%';
   const str = String(val).trim();
-  if (str.endsWith('%')) return str;
-  const num = parseFloat(str.replace(',', '.'));
+  const isPctStr = str.endsWith('%');
+  const cleanNumStr = (isPctStr ? str.slice(0, -1) : str).replace(',', '.').trim();
+  const num = parseFloat(cleanNumStr);
   if (isNaN(num)) return str;
   if (num === 0) return '0%';
-  const pct = (num > 0 && num <= 1) ? (num * 100) : num;
+  const pct = (!isPctStr && num > 0 && num <= 1) ? (num * 100) : num;
   return `${Math.round(pct)}%`;
 }
 
 function styleObjToInlineCss(st) {
   if (!st || typeof st !== 'object') return '';
   const parts = [];
-  if (st.bg && st.bg !== 'transparent' && st.bg !== 'none') parts.push(`background-color:${st.bg}`);
-  if (st.fg) parts.push(`color:${st.fg}`);
-  if (st.ff) parts.push(`font-family:${st.ff}, Arial, sans-serif`);
-  if (st.fw) parts.push(`font-weight:${st.fw}`);
-  if (st.fi) parts.push(`font-style:${st.fi}`);
-  if (st.fs) parts.push(`font-size:calc(${st.fs}pt * var(--content-font-scale, 1))`);
-  if (st.align) parts.push(`text-align:${st.align}`);
+  if (st.bg && st.bg !== 'transparent' && st.bg !== 'none') parts.push(`background-color:${st.bg} !important`);
+  if (st.fg) parts.push(`color:${st.fg} !important`);
+  if (st.ff) parts.push(`font-family:${st.ff}, Calibri, Arial, sans-serif !important`);
+  if (st.fw) parts.push(`font-weight:${st.fw} !important`);
+  if (st.fi) parts.push(`font-style:${st.fi} !important`);
+  if (st.fs) parts.push(`font-size:calc(${st.fs}pt * var(--content-font-scale, 1)) !important`);
+  if (st.align) parts.push(`text-align:${st.align} !important`);
   return parts.length > 0 ? parts.join(';') + ';' : '';
+}
+
+function styleObjToInputCss(st) {
+  if (!st || typeof st !== 'object') return '';
+  const parts = ['background:transparent !important'];
+  if (st.fg) parts.push(`color:${st.fg} !important`);
+  if (st.ff) parts.push(`font-family:${st.ff}, Calibri, Arial, sans-serif !important`);
+  if (st.fw) parts.push(`font-weight:${st.fw} !important`);
+  if (st.fi) parts.push(`font-style:${st.fi} !important`);
+  if (st.fs) parts.push(`font-size:calc(${st.fs}pt * var(--content-font-scale, 1)) !important`);
+  if (st.align) parts.push(`text-align:${st.align} !important`);
+  return parts.join(';') + ';';
+}
+
+function getDefaultAktivitasOnlineHeaderStyles() {
+  return {
+    name: { bg: '#ff0000', fg: '#ffffff', ff: 'Arial', fw: 'bold', fs: 10, align: 'center' },
+    days: Array.from({ length: 31 }, () => ({ bg: '#ff0000', fg: '#ffffff', ff: 'Arial', fw: 'bold', fs: 10, align: 'center' })),
+    summaries: {
+      total: { bg: '#ff0000', fg: '#ffffff', ff: 'Arial', fw: 'bold', fs: 10, align: 'center' },
+      spacer: { bg: '#ffffff', fg: '#000000', ff: 'Arial', fs: 10, align: 'center' },
+      totalActual: { bg: '#000000', fg: '#ffffff', ff: 'Arial', fw: 'bold', fs: 10, align: 'center' },
+      hadir: { bg: '#000000', fg: '#ffffff', ff: 'Arial', fw: 'bold', fs: 10, align: 'center' },
+      persentaseHadir: { bg: '#000000', fg: '#ffffff', ff: 'Arial', fw: 'bold', fs: 10, align: 'center' },
+      cuti: { bg: '#000000', fg: '#ffffff', ff: 'Arial', fw: 'bold', fs: 10, align: 'center' },
+      hadirCuti: { bg: '#000000', fg: '#ffffff', ff: 'Arial', fw: 'bold', fs: 10, align: 'center' },
+      sakit: { bg: '#000000', fg: '#ffffff', ff: 'Arial', fw: 'bold', fs: 10, align: 'center' },
+      persen: { bg: '#000000', fg: '#ffffff', ff: 'Arial', fw: 'bold', fs: 10, align: 'center' }
+    }
+  };
+}
+
+function getDefaultAktivitasAuxHeaderStyles() {
+  return {
+    name: { bg: '#434343', fg: '#ffffff', ff: 'Arial', fs: 10, align: 'center' },
+    days: Array.from({ length: 31 }, () => ({ bg: '#434343', fg: '#ffffff', ff: 'Arial', fs: 10, align: 'center' })),
+    summaries: {
+      total: { bg: '#ff0000', fg: '#ffffff', ff: 'Arial', fw: 'bold', fs: 10, align: 'center' },
+      spacer: { bg: '#ffffff', fg: '#000000', ff: 'Arial', fs: 10, align: 'center' },
+      totalOmni: { bg: '#ff0000', fg: '#ffffff', ff: 'Arial', fw: 'bold', fs: 11, align: 'center' },
+      hadir: { bg: '#ff0000', fg: '#ffffff', ff: 'Arial', fw: 'bold', fs: 11, align: 'center' },
+      penggunaanHarian: { bg: '#000000', fg: '#ffffff', ff: 'Arial', fw: 'bold', fs: 11, align: 'center' },
+      jmlUnder: { bg: '#00ff00', fg: '#000000', ff: 'Arial', fw: 'bold', fs: 11, align: 'center' },
+      jmlOver: { bg: '#ff0000', fg: '#ffffff', ff: 'Arial', fw: 'bold', fs: 11, align: 'center' },
+      persen: { bg: '#000000', fg: '#ffffff', ff: 'Arial', fw: 'bold', fs: 11, align: 'center' }
+    }
+  };
+}
+
+function getDefaultAktivitasNameStyle() {
+  return { bg: '#ffffff', fg: '#000000', ff: 'Calibri', fw: 'bold', fs: 11, align: 'left' };
+}
+
+function getDefaultAktivitasDayStyle(val, section) {
+  const s = String(val ?? '').trim().toUpperCase();
+  if (s === 'L') {
+    return { bg: '#000000', fg: '#ffffff', ff: 'Calibri', fs: 11, align: 'center' };
+  }
+  if (s === 'CUTI') {
+    return { bg: '#7030a0', fg: '#ffffff', ff: 'Calibri', fs: 11, align: 'center' };
+  }
+  if (s === 'CTSK' || s === 'SAKIT') {
+    if (section === 'aux') {
+      return { bg: '#ff0000', fg: '#ffffff', ff: 'Calibri', fs: 11, align: 'center' };
+    }
+    return { bg: '#92d050', fg: '#000000', ff: 'Calibri', fs: 11, align: 'center' };
+  }
+  if (s !== '') {
+    const num = Number(s.replace(/\./g, '').replace(/,/g, ''));
+    if (!isNaN(num)) {
+      if (section === 'aux' && num > 5400) {
+        return { bg: '#ff0000', fg: '#ffffff', ff: 'Calibri', fs: 11, align: 'center' };
+      }
+      if (section === 'online' && num > 0 && num < 20000) {
+        return { bg: '#ff0000', fg: '#ffffff', ff: 'Calibri', fs: 11, align: 'center' };
+      }
+    }
+  }
+  return { bg: '#ffffff', fg: '#000000', ff: 'Calibri', fs: 11, align: 'center' };
+}
+
+function getDefaultAktivitasOnlineSumStyles() {
+  return {
+    total: { bg: '#ff0000', fg: '#ffffff', ff: 'Arial', fw: 'bold', fs: 11, align: 'center' },
+    totalActual: { bg: '#ff0000', fg: '#ffffff', ff: 'Arial', fw: 'bold', fs: 13, align: 'center' },
+    hadir: { bg: '#ff0000', fg: '#ffffff', ff: 'Calibri', fs: 14, align: 'center' },
+    persentaseHadir: { bg: '#ff0000', fg: '#ffffff', ff: 'Arial', fw: 'bold', fs: 14, align: 'center' },
+    cuti: { bg: '#ffffff', fg: '#000000', ff: 'Arial', fw: 'bold', fs: 12, align: 'center' },
+    hadirCuti: { bg: '#ffffff', fg: '#000000', ff: 'Arial', fw: 'bold', fs: 12, align: 'center' },
+    sakit: { bg: '#ffffff', fg: '#000000', ff: 'Arial', fw: 'bold', fs: 12, align: 'center' },
+    persen: { bg: '#ffffff', fg: '#000000', ff: 'Arial', fw: 'bold', fs: 12, align: 'center' }
+  };
+}
+
+function getDefaultAktivitasAuxSumStyles() {
+  return {
+    total: { bg: '#ff0000', fg: '#ffffff', ff: 'Arial', fs: 11, align: 'center' },
+    totalOmni: { bg: '#ffff00', fg: '#000000', ff: 'Arial', fw: 'bold', fs: 14, align: 'center' },
+    hadir: { bg: '#ffff00', fg: '#000000', ff: 'Calibri', fw: 'bold', fs: 14, align: 'center' },
+    penggunaanHarian: { bg: '#ffff00', fg: '#000000', ff: 'Arial', fw: 'bold', fs: 15, align: 'center' },
+    jmlUnder: { bg: '#ffffff', fg: '#000000', ff: 'Arial', fw: 'bold', fs: 12, align: 'center' },
+    jmlOver: { bg: '#ffffff', fg: '#000000', ff: 'Arial', fw: 'bold', fs: 12, align: 'center' },
+    persen: { bg: '#ffffff', fg: '#000000', ff: 'Arial', fw: 'bold', fs: 12, align: 'center' }
+  };
+}
+
+function mergeStyleWithDefault(customSt, defaultSt) {
+  if (!customSt || typeof customSt !== 'object' || Object.keys(customSt).length === 0) {
+    return defaultSt ? { ...defaultSt } : null;
+  }
+  const merged = { ...(defaultSt || {}), ...customSt };
+  if (!customSt.bg || customSt.bg === 'none' || customSt.bg === 'transparent') {
+    if (defaultSt && defaultSt.bg) merged.bg = defaultSt.bg;
+  }
+  return merged;
+}
+
+function enrichAktivitasBucketStyles(bucket) {
+  if (!bucket || typeof bucket !== 'object') return false;
+  let changed = false;
+  const defOHdr = getDefaultAktivitasOnlineHeaderStyles();
+  const defAHdr = getDefaultAktivitasAuxHeaderStyles();
+
+  if (!bucket.onlineHeaderStyles || !bucket.onlineHeaderStyles.name || !bucket.onlineHeaderStyles.name.bg) {
+    bucket.onlineHeaderStyles = defOHdr;
+    changed = true;
+  } else {
+    bucket.onlineHeaderStyles.name = mergeStyleWithDefault(bucket.onlineHeaderStyles.name, defOHdr.name);
+    bucket.onlineHeaderStyles.days = Array.from({ length: 31 }, (_, i) =>
+      mergeStyleWithDefault(bucket.onlineHeaderStyles.days && bucket.onlineHeaderStyles.days[i], defOHdr.days[i])
+    );
+    const curSum = bucket.onlineHeaderStyles.summaries || {};
+    bucket.onlineHeaderStyles.summaries = {};
+    Object.keys(defOHdr.summaries).forEach(k => {
+      bucket.onlineHeaderStyles.summaries[k] = mergeStyleWithDefault(curSum[k], defOHdr.summaries[k]);
+    });
+  }
+
+  if (!bucket.auxHeaderStyles || !bucket.auxHeaderStyles.name || !bucket.auxHeaderStyles.name.bg) {
+    bucket.auxHeaderStyles = defAHdr;
+    changed = true;
+  } else {
+    bucket.auxHeaderStyles.name = mergeStyleWithDefault(bucket.auxHeaderStyles.name, defAHdr.name);
+    bucket.auxHeaderStyles.days = Array.from({ length: 31 }, (_, i) =>
+      mergeStyleWithDefault(bucket.auxHeaderStyles.days && bucket.auxHeaderStyles.days[i], defAHdr.days[i])
+    );
+    const curSum = bucket.auxHeaderStyles.summaries || {};
+    bucket.auxHeaderStyles.summaries = {};
+    Object.keys(defAHdr.summaries).forEach(k => {
+      bucket.auxHeaderStyles.summaries[k] = mergeStyleWithDefault(curSum[k], defAHdr.summaries[k]);
+    });
+  }
+
+  const defNameSt = getDefaultAktivitasNameStyle();
+  const defOSum = getDefaultAktivitasOnlineSumStyles();
+  const defASum = getDefaultAktivitasAuxSumStyles();
+
+  if (Array.isArray(bucket.onlineRows)) {
+    bucket.onlineRows.forEach(row => {
+      if (!row.nameStyle || !row.nameStyle.bg) {
+        row.nameStyle = mergeStyleWithDefault(row.nameStyle, defNameSt);
+        changed = true;
+      }
+      if (!Array.isArray(row.dayStyles) || row.dayStyles.length < 31) {
+        row.dayStyles = new Array(31).fill(null);
+        changed = true;
+      }
+      for (let d = 0; d < 31; d++) {
+        const val = row.days && row.days[d] !== undefined ? row.days[d] : '';
+        const defD = getDefaultAktivitasDayStyle(val, 'online');
+        const curD = row.dayStyles[d];
+        if (!curD || !curD.bg || !curD.fg || !curD.ff) {
+          row.dayStyles[d] = mergeStyleWithDefault(curD, defD);
+          changed = true;
+        }
+      }
+      if (!row.sumStyles || typeof row.sumStyles !== 'object') {
+        row.sumStyles = {};
+        changed = true;
+      }
+      Object.keys(defOSum).forEach(k => {
+        if (!row.sumStyles[k] || !row.sumStyles[k].bg) {
+          row.sumStyles[k] = mergeStyleWithDefault(row.sumStyles[k], defOSum[k]);
+          changed = true;
+        }
+      });
+    });
+  }
+
+  if (Array.isArray(bucket.auxRows)) {
+    bucket.auxRows.forEach(row => {
+      if (!row.nameStyle || !row.nameStyle.bg) {
+        row.nameStyle = mergeStyleWithDefault(row.nameStyle, defNameSt);
+        changed = true;
+      }
+      if (!Array.isArray(row.dayStyles) || row.dayStyles.length < 31) {
+        row.dayStyles = new Array(31).fill(null);
+        changed = true;
+      }
+      for (let d = 0; d < 31; d++) {
+        const val = row.days && row.days[d] !== undefined ? row.days[d] : '';
+        const defD = getDefaultAktivitasDayStyle(val, 'aux');
+        const curD = row.dayStyles[d];
+        if (!curD || !curD.bg || !curD.fg || !curD.ff) {
+          row.dayStyles[d] = mergeStyleWithDefault(curD, defD);
+          changed = true;
+        }
+      }
+      if (!row.sumStyles || typeof row.sumStyles !== 'object') {
+        row.sumStyles = {};
+        changed = true;
+      }
+      Object.keys(defASum).forEach(k => {
+        if (!row.sumStyles[k] || !row.sumStyles[k].bg) {
+          row.sumStyles[k] = mergeStyleWithDefault(row.sumStyles[k], defASum[k]);
+          changed = true;
+        }
+      });
+      if (row.penggunaanHarian !== undefined && row.penggunaanHarian !== '') {
+        const phNum = Number(row.penggunaanHarian);
+        if (!isNaN(phNum) && String(row.penggunaanHarian).includes('.')) {
+          row.penggunaanHarian = Math.round(phNum);
+          changed = true;
+        }
+      }
+    });
+  }
+
+  return changed;
 }
 
 function recalcAktivitasOnlineRow(row) {
@@ -25365,6 +25634,8 @@ function recalcAktivitasOnlineRow(row) {
       cuti++;
     } else if (upper === 'SAKIT') {
       sakit++;
+    } else if (upper === 'CTSK' || upper === 'L') {
+      // Sesuai rumus asli spreadsheet: COUNTIFS(B3:AF3, $AL$2) untuk CUTI dan COUNT(B3:AF3) untuk angka kehadiran
     } else {
       const cleaned = raw.replace(/\./g, '').replace(/,/g, '');
       const num = Number(cleaned);
@@ -25382,7 +25653,8 @@ function recalcAktivitasOnlineRow(row) {
   row.cuti = cuti;
   row.hadirCuti = hadir + cuti;
   row.sakit = sakit;
-  row.persen = hadir > 0 ? '100%' : '0%';
+  const denom = hadir + cuti + sakit;
+  row.persen = denom > 0 ? `${Math.round(((hadir + cuti) / denom) * 100)}%` : '0%';
   return row;
 }
 
@@ -25410,50 +25682,69 @@ function recalcAktivitasAuxRow(row) {
   row.total = total;
   row.totalOmni = total;
   row.hadir = hadir;
-  row.penggunaanHarian = hadir > 0 ? Number((total / hadir).toFixed(6)) : 0;
+  row.penggunaanHarian = hadir > 0 ? Math.round(total / hadir) : 0;
   row.jmlUnder = under;
   row.jmlOver = over;
-  row.persen = hadir > 0 ? `${Math.round(((hadir - over) / hadir) * 100)}%` : '0%';
+  const denom = under + over;
+  row.persen = denom > 0 ? `${Math.round((under / denom) * 100)}%` : (hadir > 0 ? '100%' : '0%');
   return row;
 }
 
 function buildSeedRowsFromDefault() {
+  const defNameSt = getDefaultAktivitasNameStyle();
+  const defOSum = getDefaultAktivitasOnlineSumStyles();
+  const defASum = getDefaultAktivitasAuxSumStyles();
+
   const onlineRows = RAW_DEFAULT_AKTIVITAS_ONLINE.map((arr, idx) => {
     const days = new Array(31).fill('');
-    for (let d = 1; d < arr.length && d <= 31; d++) {
-      days[d - 1] = arr[d] || '';
+    const dayStyles = new Array(31).fill(null);
+    for (let d = 1; d <= 31; d++) {
+      days[d - 1] = (d < arr.length && arr[d] !== undefined) ? arr[d] : '';
+      dayStyles[d - 1] = getDefaultAktivitasDayStyle(days[d - 1], 'online');
     }
     return recalcAktivitasOnlineRow({
       id: `akt_online_${idx + 1}`,
       name: arr[0],
-      days
+      nameStyle: { ...defNameSt },
+      days,
+      dayStyles,
+      sumStyles: JSON.parse(JSON.stringify(defOSum))
     });
   });
 
   const auxRows = RAW_DEFAULT_AKTIVITAS_AUX.map((arr, idx) => {
     const days = new Array(31).fill('');
-    for (let d = 1; d < arr.length && d <= 31; d++) {
-      days[d - 1] = arr[d] || '';
+    const dayStyles = new Array(31).fill(null);
+    for (let d = 1; d <= 31; d++) {
+      days[d - 1] = (d < arr.length && arr[d] !== undefined) ? arr[d] : '';
+      dayStyles[d - 1] = getDefaultAktivitasDayStyle(days[d - 1], 'aux');
     }
     return recalcAktivitasAuxRow({
       id: `akt_aux_${idx + 1}`,
       name: arr[0],
-      days
+      nameStyle: { ...defNameSt },
+      days,
+      dayStyles,
+      sumStyles: JSON.parse(JSON.stringify(defASum))
     });
   });
 
-  return { onlineRows, auxRows };
+  return {
+    _isPulledOrEdited: true,
+    onlineHeaderStyles: getDefaultAktivitasOnlineHeaderStyles(),
+    auxHeaderStyles: getDefaultAktivitasAuxHeaderStyles(),
+    onlineRows,
+    auxRows
+  };
 }
 
 function buildDefaultAktivitasData() {
   const seed = buildSeedRowsFromDefault();
   return {
-    onlineRows: seed.onlineRows,
-    auxRows: seed.auxRows,
+    _isolationVersion: 6,
+    lastPulledMonth: '2026-10',
     byMonth: {
-      'ALL': JSON.parse(JSON.stringify(seed)),
-      '2026-10': JSON.parse(JSON.stringify(seed)),
-      '2026-09': JSON.parse(JSON.stringify(seed))
+      '2026-10': seed
     },
     updatedAt: new Date().toISOString()
   };
@@ -25478,13 +25769,19 @@ function isAktivitasRowMatchUser(row, user) {
 }
 
 function getSelectedAktivitasMonth() {
-  return (UI && UI.filterAktivitasMonth && UI.filterAktivitasMonth.value) ? UI.filterAktivitasMonth.value : '2026-10';
+  const val = (UI && UI.filterAktivitasMonth && UI.filterAktivitasMonth.value) ? UI.filterAktivitasMonth.value : '2026-10';
+  if (!val || val === 'ALL') {
+    const data = state.getAktivitasData();
+    const fallback = (data && data.lastPulledMonth && data.lastPulledMonth !== 'ALL') ? data.lastPulledMonth : '2026-10';
+    if (UI && UI.filterAktivitasMonth) UI.filterAktivitasMonth.value = fallback;
+    return fallback;
+  }
+  return val;
 }
 
 /**
- * Mengambil dan menyinkronkan data Aktivitas pada bulan terpilih.
- * Mempertahankan seluruh baris, urutan, format nama, font, warna font, dan warna blok dari spreadsheet,
- * sekaligus menghubungkannya dengan data User Terdaftar (Manajemen Team).
+ * Mengambil dan menyinkronkan data Aktivitas pada bulan terpilih secara terisolasi.
+ * Data tarikan hanya tampil pada bulan saat tarikan dilakukan dan TIDAK terlihat pada filter bulan lainnya.
  */
 function getSyncedAktivitasMonthRows(monthKey) {
   const data = state.getAktivitasData();
@@ -25492,47 +25789,27 @@ function getSyncedAktivitasMonthRows(monthKey) {
     data.byMonth = {};
   }
 
-  if (!data.byMonth[monthKey]) {
-    const seed = buildSeedRowsFromDefault();
-    const baseOnline = (Array.isArray(data.onlineRows) && data.onlineRows.length > 0 && data.onlineRows.length >= 14)
-      ? JSON.parse(JSON.stringify(data.onlineRows))
-      : seed.onlineRows;
-    const baseAux = (Array.isArray(data.auxRows) && data.auxRows.length > 0 && data.auxRows.length >= 14)
-      ? JSON.parse(JSON.stringify(data.auxRows))
-      : seed.auxRows;
-    data.byMonth[monthKey] = {
-      onlineRows: baseOnline,
-      auxRows: baseAux
+  const targetMonth = (!monthKey || monthKey === 'ALL') ? (data.lastPulledMonth || '2026-10') : monthKey;
+  const monthBucket = data.byMonth[targetMonth];
+
+  // Jika bulan yang dipilih belum pernah ditarik/diisi datanya, kembalikan kosong (tidak bocor dari bulan lain)
+  if (!monthBucket || !monthBucket._isPulledOrEdited) {
+    const emptyBucket = {
+      onlineHeaderStyles: getDefaultAktivitasOnlineHeaderStyles(),
+      auxHeaderStyles: getDefaultAktivitasAuxHeaderStyles(),
+      onlineRows: [],
+      auxRows: []
     };
+    return { data, monthBucket: emptyBucket, onlineDisplay: [], auxDisplay: [] };
   }
 
-  const monthBucket = data.byMonth[monthKey];
   if (!Array.isArray(monthBucket.onlineRows)) monthBucket.onlineRows = [];
   if (!Array.isArray(monthBucket.auxRows)) monthBucket.auxRows = [];
 
-  // Jika bulan ini kehilangan sebagian dari 14 baris default spreadsheet karena versi lama, lengkapi kembali sesuai urutan spreadsheet
-  const defaultSeed = buildSeedRowsFromDefault();
-  if (monthBucket.onlineRows.length < defaultSeed.onlineRows.length && !monthBucket._hasCustomPull) {
-    defaultSeed.onlineRows.forEach((seedRow, sIdx) => {
-      const exists = monthBucket.onlineRows.some(r => String(r.name || '').trim().toLowerCase() === seedRow.name.toLowerCase());
-      if (!exists) {
-        monthBucket.onlineRows.splice(sIdx, 0, seedRow);
-      }
-    });
-  }
-  if (monthBucket.auxRows.length < defaultSeed.auxRows.length && !monthBucket._hasCustomPull) {
-    defaultSeed.auxRows.forEach((seedRow, sIdx) => {
-      const exists = monthBucket.auxRows.some(r => String(r.name || '').trim().toLowerCase() === seedRow.name.toLowerCase());
-      if (!exists) {
-        monthBucket.auxRows.splice(sIdx, 0, seedRow);
-      }
-    });
-  }
+  let modified = enrichAktivitasBucketStyles(monthBucket);
 
   const allUsers = (state && typeof state.getUsers === 'function') ? (state.getUsers() || []) : [];
   const registeredUsers = allUsers.filter(u => u && u.role !== 'admin');
-
-  let modified = false;
 
   // Normalisasi format % pada setiap baris yang ada dan tautkan dengan user terdaftar jika cocok
   monthBucket.onlineRows.forEach(row => {
@@ -25566,35 +25843,6 @@ function getSyncedAktivitasMonthRows(monthKey) {
     }
   });
 
-  // Pastikan setiap user terdaftar yang belum ada di tabel juga ditambahkan
-  registeredUsers.forEach(u => {
-    // Abaikan akun demo/placeholder jika tidak ada di spreadsheet
-    const uNameLower = String(u.fullName || '').trim().toLowerCase();
-    if (uNameLower === 'rofi andiyono' && monthBucket.onlineRows.length >= 14 && !monthBucket.onlineRows.some(r => isAktivitasRowMatchUser(r, u))) {
-      return;
-    }
-    if (!monthBucket.onlineRows.some(r => isAktivitasRowMatchUser(r, u))) {
-      monthBucket.onlineRows.push(recalcAktivitasOnlineRow({
-        id: `akt_online_${u.id || Date.now()}`,
-        userId: u.id || '',
-        username: u.username || '',
-        name: String(u.fullName || '').toUpperCase(),
-        days: new Array(31).fill('')
-      }));
-      modified = true;
-    }
-    if (!monthBucket.auxRows.some(r => isAktivitasRowMatchUser(r, u))) {
-      monthBucket.auxRows.push(recalcAktivitasAuxRow({
-        id: `akt_aux_${u.id || Date.now()}`,
-        userId: u.id || '',
-        username: u.username || '',
-        name: String(u.fullName || '').toUpperCase(),
-        days: new Array(31).fill('')
-      }));
-      modified = true;
-    }
-  });
-
   if (modified) {
     state.saveAktivitasData(data);
   }
@@ -25617,10 +25865,13 @@ function getAktivitasCellClass(val, section) {
   if (!s) return '';
   if (s === 'L') return 'akt-cell-libur';
   if (s === 'CUTI') return 'akt-cell-cuti';
-  if (s === 'CTSK' || s === 'SAKIT') return 'akt-cell-sakit';
-  if (section === 'aux') {
-    const num = Number(s.replace(/\./g, '').replace(/,/g, ''));
-    if (!isNaN(num) && num > 5400) return 'akt-cell-over';
+  if (s === 'CTSK' || s === 'SAKIT') {
+    return section === 'aux' ? 'akt-cell-sakit-aux' : 'akt-cell-sakit-online';
+  }
+  const num = Number(s.replace(/\./g, '').replace(/,/g, ''));
+  if (!isNaN(num)) {
+    if (section === 'aux' && num > 5400) return 'akt-cell-over';
+    if (section === 'online' && num > 0 && num < 20000) return 'akt-cell-over';
   }
   return '';
 }
@@ -25939,25 +26190,35 @@ async function pushAktivitasToGoogleSheets() {
 
 /**
  * Mengurai matriks 2D kaya gaya (values, displayValues, backgrounds, fontColors, fontFamilies, fontWeights, fontStyles, fontSizes, alignments)
- * menjadi onlineRows, auxRows, onlineHeaderStyles, dan auxHeaderStyles.
+ * menjadi onlineRows, auxRows, onlineHeaderStyles, dan auxHeaderStyles lengkap dengan warna kolom, warna teks, dan font asli spreadsheet.
  */
 function parseAktivitasRichGrid(grid) {
   const onlineRows = [];
   const auxRows = [];
-  let onlineHeaderStyles = null;
-  let auxHeaderStyles = null;
+  const defOHdr = getDefaultAktivitasOnlineHeaderStyles();
+  const defAHdr = getDefaultAktivitasAuxHeaderStyles();
+  const defNameSt = getDefaultAktivitasNameStyle();
+  const defOSum = getDefaultAktivitasOnlineSumStyles();
+  const defASum = getDefaultAktivitasAuxSumStyles();
+
+  let onlineHeaderStyles = JSON.parse(JSON.stringify(defOHdr));
+  let auxHeaderStyles = JSON.parse(JSON.stringify(defAHdr));
   let mode = null; // 'online' | 'aux'
-  let sumStartIdx = 32;
   let hasEmptySpacerCol = true;
+  let hasRichStyles = false;
 
   for (let r = 0; r < grid.length; r++) {
     const rowCells = grid[r] || [];
     if (rowCells.length === 0) continue;
-    const c0 = rowCells[0] || { val: '', displayVal: '', style: {} };
+    const c0 = rowCells[0] || { val: '', displayVal: '', style: null };
     const firstText = String(c0.displayVal || c0.val || '').trim();
     const upperFirst = firstText.toUpperCase();
-    const c1 = rowCells[1] || { val: '', displayVal: '', style: {} };
+    const c1 = rowCells[1] || { val: '', displayVal: '', style: null };
     const secondText = String(c1.displayVal || c1.val || '').trim();
+
+    if (c0.style && (c0.style.bg || c0.style.fg || c0.style.ff)) {
+      hasRichStyles = true;
+    }
 
     if (upperFirst === 'DURASI ONLINE') {
       if (secondText === '1') {
@@ -25966,17 +26227,18 @@ function parseAktivitasRichGrid(grid) {
         hasEmptySpacerCol = (c33Text === '');
         const sOffset = hasEmptySpacerCol ? 34 : 33;
         onlineHeaderStyles = {
-          name: c0.style || {},
-          days: Array.from({ length: 31 }, (_, d) => (rowCells[d + 1] && rowCells[d + 1].style) || {}),
+          name: mergeStyleWithDefault(c0.style, defOHdr.name),
+          days: Array.from({ length: 31 }, (_, d) => mergeStyleWithDefault(rowCells[d + 1] && rowCells[d + 1].style, defOHdr.days[d])),
           summaries: {
-            total: (rowCells[32] && rowCells[32].style) || {},
-            totalActual: (rowCells[sOffset] && rowCells[sOffset].style) || {},
-            hadir: (rowCells[sOffset + 1] && rowCells[sOffset + 1].style) || {},
-            persentaseHadir: (rowCells[sOffset + 2] && rowCells[sOffset + 2].style) || {},
-            cuti: (rowCells[sOffset + 3] && rowCells[sOffset + 3].style) || {},
-            hadirCuti: (rowCells[sOffset + 4] && rowCells[sOffset + 4].style) || {},
-            sakit: (rowCells[sOffset + 5] && rowCells[sOffset + 5].style) || {},
-            persen: (rowCells[sOffset + 6] && rowCells[sOffset + 6].style) || {}
+            total: mergeStyleWithDefault(rowCells[32] && rowCells[32].style, defOHdr.summaries.total),
+            spacer: mergeStyleWithDefault(hasEmptySpacerCol && rowCells[33] ? rowCells[33].style : null, defOHdr.summaries.spacer),
+            totalActual: mergeStyleWithDefault(rowCells[sOffset] && rowCells[sOffset].style, defOHdr.summaries.totalActual),
+            hadir: mergeStyleWithDefault(rowCells[sOffset + 1] && rowCells[sOffset + 1].style, defOHdr.summaries.hadir),
+            persentaseHadir: mergeStyleWithDefault(rowCells[sOffset + 2] && rowCells[sOffset + 2].style, defOHdr.summaries.persentaseHadir),
+            cuti: mergeStyleWithDefault(rowCells[sOffset + 3] && rowCells[sOffset + 3].style, defOHdr.summaries.cuti),
+            hadirCuti: mergeStyleWithDefault(rowCells[sOffset + 4] && rowCells[sOffset + 4].style, defOHdr.summaries.hadirCuti),
+            sakit: mergeStyleWithDefault(rowCells[sOffset + 5] && rowCells[sOffset + 5].style, defOHdr.summaries.sakit),
+            persen: mergeStyleWithDefault(rowCells[sOffset + 6] && rowCells[sOffset + 6].style, defOHdr.summaries.persen)
           }
         };
       }
@@ -25990,16 +26252,17 @@ function parseAktivitasRichGrid(grid) {
         hasEmptySpacerCol = (c33Text === '');
         const sOffset = hasEmptySpacerCol ? 34 : 33;
         auxHeaderStyles = {
-          name: c0.style || {},
-          days: Array.from({ length: 31 }, (_, d) => (rowCells[d + 1] && rowCells[d + 1].style) || {}),
+          name: mergeStyleWithDefault(c0.style, defAHdr.name),
+          days: Array.from({ length: 31 }, (_, d) => mergeStyleWithDefault(rowCells[d + 1] && rowCells[d + 1].style, defAHdr.days[d])),
           summaries: {
-            total: (rowCells[32] && rowCells[32].style) || {},
-            totalOmni: (rowCells[sOffset] && rowCells[sOffset].style) || {},
-            hadir: (rowCells[sOffset + 1] && rowCells[sOffset + 1].style) || {},
-            penggunaanHarian: (rowCells[sOffset + 2] && rowCells[sOffset + 2].style) || {},
-            jmlUnder: (rowCells[sOffset + 3] && rowCells[sOffset + 3].style) || {},
-            jmlOver: (rowCells[sOffset + 4] && rowCells[sOffset + 4].style) || {},
-            persen: (rowCells[sOffset + 5] && rowCells[sOffset + 5].style) || {}
+            total: mergeStyleWithDefault(rowCells[32] && rowCells[32].style, defAHdr.summaries.total),
+            spacer: mergeStyleWithDefault(hasEmptySpacerCol && rowCells[33] ? rowCells[33].style : null, defAHdr.summaries.spacer),
+            totalOmni: mergeStyleWithDefault(rowCells[sOffset] && rowCells[sOffset].style, defAHdr.summaries.totalOmni),
+            hadir: mergeStyleWithDefault(rowCells[sOffset + 1] && rowCells[sOffset + 1].style, defAHdr.summaries.hadir),
+            penggunaanHarian: mergeStyleWithDefault(rowCells[sOffset + 2] && rowCells[sOffset + 2].style, defAHdr.summaries.penggunaanHarian),
+            jmlUnder: mergeStyleWithDefault(rowCells[sOffset + 3] && rowCells[sOffset + 3].style, defAHdr.summaries.jmlUnder),
+            jmlOver: mergeStyleWithDefault(rowCells[sOffset + 4] && rowCells[sOffset + 4].style, defAHdr.summaries.jmlOver),
+            persen: mergeStyleWithDefault(rowCells[sOffset + 5] && rowCells[sOffset + 5].style, defAHdr.summaries.persen)
           }
         };
       }
@@ -26008,12 +26271,15 @@ function parseAktivitasRichGrid(grid) {
 
     if (!firstText) continue;
 
+    const currentSection = mode === 'aux' ? 'aux' : 'online';
     const days = new Array(31).fill('');
     const dayStyles = new Array(31).fill(null);
     for (let d = 1; d <= 31; d++) {
       const cell = rowCells[d];
-      days[d - 1] = cell ? String(cell.displayVal !== undefined && cell.displayVal !== '' ? cell.displayVal : (cell.val ?? '')).trim() : '';
-      dayStyles[d - 1] = (cell && cell.style) ? cell.style : null;
+      const cellText = cell ? String(cell.displayVal !== undefined && cell.displayVal !== '' ? cell.displayVal : (cell.val ?? '')).trim() : '';
+      days[d - 1] = cellText;
+      const defDaySt = getDefaultAktivitasDayStyle(cellText, currentSection);
+      dayStyles[d - 1] = mergeStyleWithDefault(cell && cell.style ? cell.style : null, defDaySt);
     }
 
     const sOffset = hasEmptySpacerCol ? 34 : 33;
@@ -26022,29 +26288,33 @@ function parseAktivitasRichGrid(grid) {
       if (!cell) return '';
       return String(cell.displayVal !== undefined && cell.displayVal !== '' ? cell.displayVal : (cell.val ?? '')).trim();
     };
-    const getCellStyle = (idx) => (rowCells[idx] && rowCells[idx].style) ? rowCells[idx].style : null;
+    const getCellStyle = (idx, defSt) => mergeStyleWithDefault((rowCells[idx] && rowCells[idx].style) ? rowCells[idx].style : null, defSt);
 
     if (mode === 'aux') {
       const rowObj = recalcAktivitasAuxRow({
         id: `akt_aux_${Date.now()}_${auxRows.length}`,
         name: firstText,
-        nameStyle: c0.style || null,
+        nameStyle: mergeStyleWithDefault(c0.style, defNameSt),
         days,
         dayStyles,
         sumStyles: {
-          total: getCellStyle(32),
-          totalOmni: getCellStyle(sOffset),
-          hadir: getCellStyle(sOffset + 1),
-          penggunaanHarian: getCellStyle(sOffset + 2),
-          jmlUnder: getCellStyle(sOffset + 3),
-          jmlOver: getCellStyle(sOffset + 4),
-          persen: getCellStyle(sOffset + 5)
+          total: getCellStyle(32, defASum.total),
+          totalOmni: getCellStyle(sOffset, defASum.totalOmni),
+          hadir: getCellStyle(sOffset + 1, defASum.hadir),
+          penggunaanHarian: getCellStyle(sOffset + 2, defASum.penggunaanHarian),
+          jmlUnder: getCellStyle(sOffset + 3, defASum.jmlUnder),
+          jmlOver: getCellStyle(sOffset + 4, defASum.jmlOver),
+          persen: getCellStyle(sOffset + 5, defASum.persen)
         }
       });
       if (getCellDisp(32) !== '') rowObj.total = getCellDisp(32);
       if (getCellDisp(sOffset) !== '') rowObj.totalOmni = getCellDisp(sOffset);
       if (getCellDisp(sOffset + 1) !== '') rowObj.hadir = getCellDisp(sOffset + 1);
-      if (getCellDisp(sOffset + 2) !== '') rowObj.penggunaanHarian = getCellDisp(sOffset + 2);
+      if (getCellDisp(sOffset + 2) !== '') {
+        const rawPh = getCellDisp(sOffset + 2);
+        const numPh = parseFloat(rawPh.replace(',', '.'));
+        rowObj.penggunaanHarian = !isNaN(numPh) ? Math.round(numPh) : rawPh;
+      }
       if (getCellDisp(sOffset + 3) !== '') rowObj.jmlUnder = getCellDisp(sOffset + 3);
       if (getCellDisp(sOffset + 4) !== '') rowObj.jmlOver = getCellDisp(sOffset + 4);
       if (getCellDisp(sOffset + 5) !== '') rowObj.persen = formatAktivitasPercent(getCellDisp(sOffset + 5));
@@ -26053,18 +26323,18 @@ function parseAktivitasRichGrid(grid) {
       const rowObj = recalcAktivitasOnlineRow({
         id: `akt_online_${Date.now()}_${onlineRows.length}`,
         name: firstText,
-        nameStyle: c0.style || null,
+        nameStyle: mergeStyleWithDefault(c0.style, defNameSt),
         days,
         dayStyles,
         sumStyles: {
-          total: getCellStyle(32),
-          totalActual: getCellStyle(sOffset),
-          hadir: getCellStyle(sOffset + 1),
-          persentaseHadir: getCellStyle(sOffset + 2),
-          cuti: getCellStyle(sOffset + 3),
-          hadirCuti: getCellStyle(sOffset + 4),
-          sakit: getCellStyle(sOffset + 5),
-          persen: getCellStyle(sOffset + 6)
+          total: getCellStyle(32, defOSum.total),
+          totalActual: getCellStyle(sOffset, defOSum.totalActual),
+          hadir: getCellStyle(sOffset + 1, defOSum.hadir),
+          persentaseHadir: getCellStyle(sOffset + 2, defOSum.persentaseHadir),
+          cuti: getCellStyle(sOffset + 3, defOSum.cuti),
+          hadirCuti: getCellStyle(sOffset + 4, defOSum.hadirCuti),
+          sakit: getCellStyle(sOffset + 5, defOSum.sakit),
+          persen: getCellStyle(sOffset + 6, defOSum.persen)
         }
       });
       if (getCellDisp(32) !== '') rowObj.total = getCellDisp(32);
@@ -26079,7 +26349,7 @@ function parseAktivitasRichGrid(grid) {
     }
   }
 
-  return { onlineRows, auxRows, onlineHeaderStyles, auxHeaderStyles };
+  return { onlineRows, auxRows, onlineHeaderStyles, auxHeaderStyles, hasRichStyles };
 }
 
 function parseAktivitasXlsxBuffer(arrayBuffer, preferredSheetName, gid) {
@@ -26092,10 +26362,24 @@ function parseAktivitasXlsxBuffer(arrayBuffer, preferredSheetName, gid) {
     cellText: true
   });
   if (!wb || !Array.isArray(wb.SheetNames) || wb.SheetNames.length === 0) return null;
+
   let targetSheetName = wb.SheetNames[0];
   if (preferredSheetName && wb.Sheets[preferredSheetName]) {
     targetSheetName = preferredSheetName;
+  } else {
+    // Cari tab sheet yang memiliki tabel DURASI ONLINE atau AUX
+    for (const sName of wb.SheetNames) {
+      const candidate = wb.Sheets[sName];
+      if (!candidate || !candidate['!ref']) continue;
+      const a1 = candidate['A1'] && String(candidate['A1'].v || '').toUpperCase();
+      const a2 = candidate['A2'] && String(candidate['A2'].v || '').toUpperCase();
+      if (a1 === 'DURASI ONLINE' || a2 === 'DURASI ONLINE' || a1 === 'AUX' || a2 === 'AUX') {
+        targetSheetName = sName;
+        break;
+      }
+    }
   }
+
   const ws = wb.Sheets[targetSheetName];
   if (!ws || !ws['!ref']) return null;
 
@@ -26111,13 +26395,17 @@ function parseAktivitasXlsxBuffer(arrayBuffer, preferredSheetName, gid) {
         continue;
       }
       const style = {};
-      if (cell.s && cell.s.fgColor && cell.s.fgColor.rgb && cell.s.patternType !== 'none') {
+      if (cell.s && cell.s.fgColor && cell.s.fgColor.rgb && cell.s.patternType && cell.s.patternType !== 'none') {
         const hex = String(cell.s.fgColor.rgb).slice(-6);
         style.bg = `#${hex}`;
       }
       if (cell._font) {
-        if (cell._font.color && cell._font.color.rgb) {
-          style.fg = `#${String(cell._font.color.rgb).slice(-6)}`;
+        if (cell._font.color) {
+          if (cell._font.color.rgb) {
+            style.fg = `#${String(cell._font.color.rgb).slice(-6)}`;
+          } else if (cell._font.color.theme !== undefined) {
+            style.fg = cell._font.color.theme === 0 ? '#ffffff' : '#000000';
+          }
         }
         if (cell._font.name) style.ff = cell._font.name;
         if (cell._font.bold) style.fw = 'bold';
@@ -26136,7 +26424,112 @@ function parseAktivitasXlsxBuffer(arrayBuffer, preferredSheetName, gid) {
     }
     grid.push(rowArr);
   }
-  return parseAktivitasRichGrid(grid);
+  const result = parseAktivitasRichGrid(grid);
+  result.hasRichStyles = true;
+  return result;
+}
+
+function parseAktivitasGoogleZipBuffer(arrayBuffer, preferredSheetName) {
+  if (typeof XLSX === 'undefined' || !XLSX.CFB || typeof DOMParser === 'undefined') return null;
+  try {
+    const cfb = XLSX.CFB.read(new Uint8Array(arrayBuffer), { type: 'array' });
+    if (!cfb || !Array.isArray(cfb.FileIndex)) return null;
+    const dec = new TextDecoder('utf-8');
+    let cssText = '';
+    const htmlFiles = [];
+    cfb.FileIndex.forEach(entry => {
+      if (!entry || !entry.name || !entry.content) return;
+      if (entry.name.endsWith('.css')) {
+        cssText += '\n' + dec.decode(new Uint8Array(entry.content));
+      } else if (entry.name.endsWith('.html')) {
+        htmlFiles.push({
+          name: entry.name,
+          html: dec.decode(new Uint8Array(entry.content))
+        });
+      }
+    });
+    if (htmlFiles.length === 0) return null;
+
+    let targetHtml = htmlFiles[0].html;
+    if (preferredSheetName) {
+      const matched = htmlFiles.find(f => f.name.toLowerCase().includes(preferredSheetName.toLowerCase()));
+      if (matched) targetHtml = matched.html;
+    }
+    for (const f of htmlFiles) {
+      if (f.html.includes('DURASI ONLINE') || f.html.includes('TOTAL AUX')) {
+        targetHtml = f.html;
+        break;
+      }
+    }
+
+    const doc = new DOMParser().parseFromString(targetHtml, 'text/html');
+    doc.querySelectorAll('style').forEach(st => {
+      cssText += '\n' + (st.textContent || '');
+    });
+
+    const classRules = {};
+    const ruleRegex = /\.([a-zA-Z0-9_-]+)\s*\{([^}]*)\}/g;
+    let m;
+    while ((m = ruleRegex.exec(cssText)) !== null) {
+      const clsName = m[1];
+      const body = m[2];
+      const st = classRules[clsName] || {};
+      body.split(';').forEach(decl => {
+        const idx = decl.indexOf(':');
+        if (idx === -1) return;
+        const prop = decl.slice(0, idx).trim().toLowerCase();
+        const val = decl.slice(idx + 1).trim();
+        if (!val) return;
+        if (prop === 'background-color' || prop === 'background') st.bg = val;
+        else if (prop === 'color') st.fg = val;
+        else if (prop === 'font-family') st.ff = val.replace(/['"]/g, '').split(',')[0].trim();
+        else if (prop === 'font-weight' && val !== 'normal' && val !== '400') st.fw = val;
+        else if (prop === 'font-style' && val !== 'normal') st.fi = val;
+        else if (prop === 'font-size') {
+          const ptMatch = val.match(/([\d.]+)\s*pt/i);
+          if (ptMatch) st.fs = parseFloat(ptMatch[1]);
+        } else if (prop === 'text-align') st.align = val;
+      });
+      classRules[clsName] = st;
+    }
+
+    const table = doc.querySelector('table.waffle') || doc.querySelector('table');
+    if (!table) return null;
+    const trs = Array.from(table.querySelectorAll('tbody tr, tr'));
+    const grid = [];
+    trs.forEach(tr => {
+      const tds = Array.from(tr.querySelectorAll('td'));
+      if (tds.length === 0) return;
+      const rowArr = tds.map(td => {
+        const style = {};
+        const classes = (td.className || '').split(/\s+/).filter(Boolean);
+        classes.forEach(c => {
+          if (classRules[c]) Object.assign(style, classRules[c]);
+        });
+        if (td.style) {
+          if (td.style.backgroundColor) style.bg = td.style.backgroundColor;
+          if (td.style.color) style.fg = td.style.color;
+          if (td.style.fontFamily) style.ff = td.style.fontFamily.replace(/['"]/g, '');
+          if (td.style.fontWeight) style.fw = td.style.fontWeight;
+          if (td.style.fontStyle) style.fi = td.style.fontStyle;
+          if (td.style.textAlign) style.align = td.style.textAlign;
+        }
+        const text = (td.textContent || '').trim();
+        return {
+          val: text,
+          displayVal: text,
+          style: Object.keys(style).length > 0 ? style : null
+        };
+      });
+      grid.push(rowArr);
+    });
+    const parsed = parseAktivitasRichGrid(grid);
+    parsed.hasRichStyles = true;
+    return parsed;
+  } catch (e) {
+    console.warn('parseAktivitasGoogleZipBuffer error:', e);
+    return null;
+  }
 }
 
 function parseAktivitasAppsScriptJson(json) {
@@ -26171,7 +26564,9 @@ function parseAktivitasAppsScriptJson(json) {
     }
     grid.push(rowArr);
   }
-  return parseAktivitasRichGrid(grid);
+  const parsed = parseAktivitasRichGrid(grid);
+  parsed.hasRichStyles = bgs.length > 0 && fgs.length > 0;
+  return parsed;
 }
 
 function parseAktivitasHtmlClipboard(htmlStr) {
@@ -26210,21 +26605,44 @@ function parseAktivitasHtmlClipboard(htmlStr) {
   return parseAktivitasRichGrid(grid);
 }
 
+function getAktivitasRowsSignature(onlineRows) {
+  if (!Array.isArray(onlineRows) || onlineRows.length === 0) return '';
+  return onlineRows.map(r => `${String(r.name || '').trim().toUpperCase()}:${r.total ?? 0}`).join('|');
+}
+
 function applyPulledAktivitasRowsToMonth(monthKey, parsed) {
   const data = state.getAktivitasData();
   if (!data.byMonth || typeof data.byMonth !== 'object') data.byMonth = {};
-  if (!data.byMonth[monthKey]) {
-    data.byMonth[monthKey] = { onlineRows: [], auxRows: [] };
-  }
-  const monthBucket = data.byMonth[monthKey];
-  monthBucket._hasCustomPull = true;
 
-  if (parsed.onlineHeaderStyles) {
-    monthBucket.onlineHeaderStyles = parsed.onlineHeaderStyles;
+  const targetMonth = (!monthKey || monthKey === 'ALL') ? (data.lastPulledMonth || '2026-10') : monthKey;
+  if (UI && UI.filterAktivitasMonth && UI.filterAktivitasMonth.value !== targetMonth) {
+    UI.filterAktivitasMonth.value = targetMonth;
   }
-  if (parsed.auxHeaderStyles) {
-    monthBucket.auxHeaderStyles = parsed.auxHeaderStyles;
+
+  const newSig = getAktivitasRowsSignature(parsed.onlineRows);
+
+  // Hapus bucket default yang belum pernah ditarik kustom atau bucket bulan lain yang memiliki isi tarikan identik,
+  // sehingga data tarikan HANYA tampil pada bulan tarikan (targetMonth) dan tidak terlihat saat memilih filter bulan berbeda
+  Object.keys(data.byMonth).forEach(mKey => {
+    if (mKey === targetMonth) return;
+    const otherBucket = data.byMonth[mKey];
+    if (!otherBucket || !otherBucket._hasCustomPull) {
+      delete data.byMonth[mKey];
+    } else if (newSig && getAktivitasRowsSignature(otherBucket.onlineRows) === newSig) {
+      delete data.byMonth[mKey];
+    }
+  });
+
+  if (!data.byMonth[targetMonth]) {
+    data.byMonth[targetMonth] = { onlineRows: [], auxRows: [] };
   }
+  const monthBucket = data.byMonth[targetMonth];
+  monthBucket._isPulledOrEdited = true;
+  monthBucket._hasCustomPull = true;
+  monthBucket.pulledAt = new Date().toISOString();
+
+  monthBucket.onlineHeaderStyles = parsed.onlineHeaderStyles || getDefaultAktivitasOnlineHeaderStyles();
+  monthBucket.auxHeaderStyles = parsed.auxHeaderStyles || getDefaultAktivitasAuxHeaderStyles();
 
   const allUsers = (state.getUsers() || []).filter(u => u && u.role !== 'admin');
 
@@ -26253,8 +26671,12 @@ function applyPulledAktivitasRowsToMonth(monthKey, parsed) {
     });
   }
 
-  data.onlineRows = monthBucket.onlineRows;
-  data.auxRows = monthBucket.auxRows;
+  enrichAktivitasBucketStyles(monthBucket);
+
+  data.lastPulledMonth = targetMonth;
+  data._isolationVersion = 6;
+  delete data.onlineRows;
+  delete data.auxRows;
   data.updatedAt = new Date().toISOString();
   state.saveAktivitasData(data);
 }
@@ -26289,9 +26711,13 @@ async function pullAktivitasFromGoogleSheets() {
 
   try {
     let parsedResult = null;
+    const rawSheetSource = config.sheetId || (config.webAppUrl && config.webAppUrl.includes('docs.google.com/spreadsheets') ? config.webAppUrl : '');
+    const cleanId = rawSheetSource ? extractGoogleSpreadsheetId(rawSheetSource) : '';
+    const gidMatch = String(rawSheetSource || '').match(/[#&?]gid=([0-9]+)/);
+    const gid = gidMatch ? gidMatch[1] : '';
 
     // 1. Coba tarik via Web App URL (menyertakan backgrounds, fontColors, fontFamilies, displayValues)
-    if (config.webAppUrl) {
+    if (config.webAppUrl && !config.webAppUrl.includes('docs.google.com/spreadsheets')) {
       try {
         const getUrl = config.webAppUrl + (config.webAppUrl.includes('?') ? '&' : '?') + `action=get_all&month=${encodeURIComponent(monthKey)}&sheet=${encodeURIComponent(config.sheetName || 'Aktivitas_Data')}`;
         const resp = await fetch(getUrl, { method: 'GET', mode: 'cors' });
@@ -26308,24 +26734,39 @@ async function pullAktivitasFromGoogleSheets() {
       }
     }
 
-    // 2. Jika sheetId tersedia dan belum mendapat hasil lengkap, tarik file .xlsx asli dari Google Sheets agar Font, Warna Font, dan Warna Blok (Background) 100% terambil
-    if ((!parsedResult || (parsedResult.onlineRows.length === 0 && parsedResult.auxRows.length === 0)) && config.sheetId) {
-      const cleanId = extractGoogleSpreadsheetId(config.sheetId);
-      const gidMatch = String(config.sheetId).match(/[#&?]gid=([0-9]+)/);
-      const gid = gidMatch ? gidMatch[1] : '';
-
+    // 2. Jika cleanId tersedia dan belum mendapat hasil lengkap beserta gaya (hasRichStyles), tarik file .xlsx / .zip asli dari Google Sheets
+    if (cleanId && (!parsedResult || !parsedResult.hasRichStyles || (parsedResult.onlineRows.length === 0 && parsedResult.auxRows.length === 0))) {
       try {
-        const xlsxUrl = `https://docs.google.com/spreadsheets/d/${cleanId}/export?format=xlsx`;
+        const xlsxUrl = `https://docs.google.com/spreadsheets/d/${cleanId}/export?format=xlsx${gid ? '&gid=' + gid : ''}`;
         const respXlsx = await fetch(xlsxUrl);
         if (respXlsx.ok) {
           const buf = await respXlsx.arrayBuffer();
-          parsedResult = parseAktivitasXlsxBuffer(buf, config.sheetName, gid);
+          const xlsxParsed = parseAktivitasXlsxBuffer(buf, config.sheetName, gid);
+          if (xlsxParsed && (xlsxParsed.onlineRows.length > 0 || xlsxParsed.auxRows.length > 0)) {
+            parsedResult = xlsxParsed;
+          }
         }
       } catch (eXlsx) {
-        console.warn('XLSX export fallback to CSV:', eXlsx);
+        console.warn('XLSX export fallback:', eXlsx);
       }
 
-      // 3. Fallback ke CSV jika XLSX tidak tersedia
+      if (!parsedResult || !parsedResult.hasRichStyles || (parsedResult.onlineRows.length === 0 && parsedResult.auxRows.length === 0)) {
+        try {
+          const zipUrl = `https://docs.google.com/spreadsheets/d/${cleanId}/export?format=zip${gid ? '&gid=' + gid : ''}`;
+          const respZip = await fetch(zipUrl);
+          if (respZip.ok) {
+            const zipBuf = await respZip.arrayBuffer();
+            const zipParsed = parseAktivitasGoogleZipBuffer(zipBuf, config.sheetName);
+            if (zipParsed && (zipParsed.onlineRows.length > 0 || zipParsed.auxRows.length > 0)) {
+              parsedResult = zipParsed;
+            }
+          }
+        } catch (eZip) {
+          console.warn('ZIP export fallback:', eZip);
+        }
+      }
+
+      // 3. Fallback ke CSV jika XLSX/ZIP tidak tersedia
       if (!parsedResult || (parsedResult.onlineRows.length === 0 && parsedResult.auxRows.length === 0)) {
         const csvUrl = gid
           ? `https://docs.google.com/spreadsheets/d/${cleanId}/export?format=csv&gid=${gid}`
@@ -26401,9 +26842,6 @@ function renderAktivitasPage() {
   if (typeof updateDynamicMonthDropdowns === 'function') {
     updateDynamicMonthDropdowns();
   }
-  if (typeof syncUserControlsForPage === 'function') {
-    syncUserControlsForPage('aktivitas', state.currentUser);
-  }
 
   const isAdmin = state.isAdmin();
   const monthKey = getSelectedAktivitasMonth();
@@ -26456,7 +26894,7 @@ function renderAktivitasPage() {
     UI.sectionAktivitasAux.classList.toggle('hidden', aktivitasActiveTab === 'ONLINE');
   }
 
-  const oHdr = monthBucket.onlineHeaderStyles || {};
+  const oHdr = monthBucket.onlineHeaderStyles || getDefaultAktivitasOnlineHeaderStyles();
   const oDayHeaders = Array.from({ length: 31 }, (_, i) => {
     const stCss = styleObjToInlineCss(oHdr.days && oHdr.days[i]);
     return `<th style="${stCss}">${i + 1}</th>`;
@@ -26464,12 +26902,13 @@ function renderAktivitasPage() {
 
   // ==================== 1. RENDER DURASI ONLINE ====================
   if (UI.theadAktivitasOnline) {
-    const oSumSt = oHdr.summaries || {};
+    const oSumSt = oHdr.summaries || getDefaultAktivitasOnlineHeaderStyles().summaries;
     UI.theadAktivitasOnline.innerHTML = `
       <tr>
         <th class="akt-col-sticky" style="${styleObjToInlineCss(oHdr.name)}">DURASI ONLINE</th>
         ${oDayHeaders}
         <th class="akt-col-summary" style="${styleObjToInlineCss(oSumSt.total)}">TOTAL</th>
+        <th class="akt-col-spacer" style="${styleObjToInlineCss(oSumSt.spacer)}"></th>
         <th class="akt-col-summary" style="${styleObjToInlineCss(oSumSt.totalActual)}">TOTAL JAM ONLINE ACTUAL</th>
         <th class="akt-col-summary" style="${styleObjToInlineCss(oSumSt.hadir)}">JUMLAH KEHADIRAN</th>
         <th class="akt-col-summary" style="${styleObjToInlineCss(oSumSt.persentaseHadir)}">PRESENTASE KEHADIRAN</th>
@@ -26477,7 +26916,7 @@ function renderAktivitasPage() {
         <th class="akt-col-summary" style="${styleObjToInlineCss(oSumSt.hadirCuti)}">HADIR+CUTI</th>
         <th class="akt-col-summary" style="${styleObjToInlineCss(oSumSt.sakit)}">SAKIT</th>
         <th class="akt-col-summary" style="${styleObjToInlineCss(oSumSt.persen)}">%</th>
-        ${isAdmin ? '<th class="akt-col-summary" style="text-align:center;">AKSI</th>' : ''}
+        ${isAdmin ? '<th class="akt-col-summary" style="background-color:#000000 !important; color:#ffffff !important; font-family:Arial,sans-serif !important; font-weight:bold !important; text-align:center !important;">AKSI</th>' : ''}
       </tr>
     `;
   }
@@ -26492,33 +26931,43 @@ function renderAktivitasPage() {
     UI.badgeAktivitasOnlineCount.textContent = `${filteredOnline.length} Petugas`;
   }
 
+  const defNameSt = getDefaultAktivitasNameStyle();
+  const defOSum = getDefaultAktivitasOnlineSumStyles();
+  const defASum = getDefaultAktivitasAuxSumStyles();
+
   if (UI.tbodyAktivitasOnline) {
     if (filteredOnline.length === 0) {
-      const colSpan = isAdmin ? 41 : 40;
-      UI.tbodyAktivitasOnline.innerHTML = `<tr><td colspan="${colSpan}" style="text-align:center; padding:24px; color:#555;">Tidak ada data user terdaftar yang cocok dengan pencarian.</td></tr>`;
+      const colSpan = isAdmin ? 42 : 41;
+      const emptyMsg = onlineDisplay.length === 0
+        ? `Belum ada data tarikan Aktivitas untuk periode <strong>${formatMonthLabel(monthKey)}</strong>.`
+        : 'Tidak ada data petugas yang cocok dengan pencarian.';
+      UI.tbodyAktivitasOnline.innerHTML = `<tr><td colspan="${colSpan}" style="text-align:center !important; padding:24px !important; color:#555 !important; background-color:#ffffff !important;">${emptyMsg}</td></tr>`;
     } else {
       UI.tbodyAktivitasOnline.innerHTML = filteredOnline.map(({ row, idx }) => {
         const displayName = row.name || '-';
         const safeName = String(displayName).replace(/"/g, '&quot;');
-        const nameCss = styleObjToInlineCss(row.nameStyle);
+        const effNameSt = mergeStyleWithDefault(row.nameStyle, defNameSt);
+        const nameCss = styleObjToInlineCss(effNameSt);
+        const nameInputCss = styleObjToInputCss(effNameSt);
         const nameCell = isAdmin
-          ? `<input type="text" class="aktivitas-cell-input akt-name-input" data-section="online" data-row="${idx}" data-field="name" value="${safeName}">`
+          ? `<input type="text" class="aktivitas-cell-input akt-name-input" style="${nameInputCss}" data-section="online" data-row="${idx}" data-field="name" value="${safeName}">`
           : `<span>${displayName}</span>`;
 
         const dayCells = Array.from({ length: 31 }, (_, d) => {
           const val = row.days && row.days[d] !== undefined ? row.days[d] : '';
           const safeVal = String(val ?? '').replace(/"/g, '&quot;');
-          const cellSt = row.dayStyles && row.dayStyles[d] ? row.dayStyles[d] : null;
-          const cellCss = styleObjToInlineCss(cellSt);
-          const statusCls = (cellSt && cellSt.bg) ? '' : getAktivitasCellClass(val, 'online');
+          const effDaySt = mergeStyleWithDefault(row.dayStyles && row.dayStyles[d], getDefaultAktivitasDayStyle(val, 'online'));
+          const cellCss = styleObjToInlineCss(effDaySt);
+          const inputCss = styleObjToInputCss(effDaySt);
+          const statusCls = getAktivitasCellClass(val, 'online');
           if (isAdmin) {
-            return `<td class="akt-col-day ${statusCls}" id="aktCell_online_${idx}_${d}" style="${cellCss}"><input type="text" class="aktivitas-cell-input" data-section="online" data-row="${idx}" data-day="${d}" value="${safeVal}"></td>`;
+            return `<td class="akt-col-day ${statusCls}" id="aktCell_online_${idx}_${d}" style="${cellCss}"><input type="text" class="aktivitas-cell-input" style="${inputCss}" data-section="online" data-row="${idx}" data-day="${d}" value="${safeVal}"></td>`;
           }
           return `<td class="akt-col-day ${statusCls}" style="${cellCss}">${val !== '' ? val : ''}</td>`;
         }).join('');
 
         const sumFields = [
-          { key: 'total', val: row.total ?? 0 },
+          { key: 'total', val: row.total ?? 0, isBeforeSpacer: true },
           { key: 'totalActual', val: row.totalActual ?? 0 },
           { key: 'hadir', val: row.hadir ?? 0 },
           { key: 'persentaseHadir', val: formatAktivitasPercent(row.persentaseHadir ?? '0%') },
@@ -26530,16 +26979,20 @@ function renderAktivitasPage() {
 
         const sumCells = sumFields.map(sf => {
           const sVal = String(sf.val ?? '').replace(/"/g, '&quot;');
-          const sumSt = row.sumStyles && row.sumStyles[sf.key] ? row.sumStyles[sf.key] : null;
-          const sumCss = styleObjToInlineCss(sumSt);
-          if (isAdmin) {
-            return `<td class="akt-col-summary" style="${sumCss}"><input type="text" class="aktivitas-cell-input akt-sum-input" id="aktSum_online_${idx}_${sf.key}" data-section="online" data-row="${idx}" data-summary="${sf.key}" value="${sVal}"></td>`;
+          const effSumSt = mergeStyleWithDefault(row.sumStyles && row.sumStyles[sf.key], defOSum[sf.key]);
+          const sumCss = styleObjToInlineCss(effSumSt);
+          const sumInputCss = styleObjToInputCss(effSumSt);
+          const cellHtml = isAdmin
+            ? `<td class="akt-col-summary" style="${sumCss}"><input type="text" class="aktivitas-cell-input akt-sum-input" style="${sumInputCss}" id="aktSum_online_${idx}_${sf.key}" data-section="online" data-row="${idx}" data-summary="${sf.key}" value="${sVal}"></td>`
+            : `<td class="akt-col-summary" id="aktSum_online_${idx}_${sf.key}" style="${sumCss}">${sf.val ?? ''}</td>`;
+          if (sf.isBeforeSpacer) {
+            return `${cellHtml}<td class="akt-col-spacer"></td>`;
           }
-          return `<td class="akt-col-summary" id="aktSum_online_${idx}_${sf.key}" style="${sumCss}">${sf.val ?? ''}</td>`;
+          return cellHtml;
         }).join('');
 
         const actionCell = isAdmin ? `
-          <td style="text-align:center;">
+          <td style="text-align:center !important; background-color:#ffffff !important;">
             <button type="button" class="btn btn-icon btn-sm" onclick="clearAktivitasUserRow('online', ${idx})" title="Kosongkan Isian Harian ${safeName}">
               <i class="fa-solid fa-eraser" style="color:#d97706;"></i>
             </button>
@@ -26559,26 +27012,27 @@ function renderAktivitasPage() {
   }
 
   // ==================== 2. RENDER AUX ====================
-  const aHdr = monthBucket.auxHeaderStyles || {};
+  const aHdr = monthBucket.auxHeaderStyles || getDefaultAktivitasAuxHeaderStyles();
   const aDayHeaders = Array.from({ length: 31 }, (_, i) => {
     const stCss = styleObjToInlineCss(aHdr.days && aHdr.days[i]);
     return `<th style="${stCss}">${i + 1}</th>`;
   }).join('');
 
   if (UI.theadAktivitasAux) {
-    const aSumSt = aHdr.summaries || {};
+    const aSumSt = aHdr.summaries || getDefaultAktivitasAuxHeaderStyles().summaries;
     UI.theadAktivitasAux.innerHTML = `
       <tr>
         <th class="akt-col-sticky" style="${styleObjToInlineCss(aHdr.name)}">AUX</th>
         ${aDayHeaders}
         <th class="akt-col-summary" style="${styleObjToInlineCss(aSumSt.total)}">TOTAL</th>
+        <th class="akt-col-spacer" style="${styleObjToInlineCss(aSumSt.spacer)}"></th>
         <th class="akt-col-summary" style="${styleObjToInlineCss(aSumSt.totalOmni)}">Total AUX</th>
         <th class="akt-col-summary" style="${styleObjToInlineCss(aSumSt.hadir)}">JUMLAH KEHADIRAN</th>
         <th class="akt-col-summary" style="${styleObjToInlineCss(aSumSt.penggunaanHarian)}">PENGGUNAAN HARIAN</th>
         <th class="akt-col-summary" style="${styleObjToInlineCss(aSumSt.jmlUnder)}">JML UNDER</th>
         <th class="akt-col-summary" style="${styleObjToInlineCss(aSumSt.jmlOver)}">JML OVER</th>
         <th class="akt-col-summary" style="${styleObjToInlineCss(aSumSt.persen)}">%</th>
-        ${isAdmin ? '<th class="akt-col-summary" style="text-align:center;">AKSI</th>' : ''}
+        ${isAdmin ? '<th class="akt-col-summary" style="background-color:#000000 !important; color:#ffffff !important; font-family:Arial,sans-serif !important; font-weight:bold !important; text-align:center !important;">AKSI</th>' : ''}
       </tr>
     `;
   }
@@ -26595,34 +27049,44 @@ function renderAktivitasPage() {
 
   if (UI.tbodyAktivitasAux) {
     if (filteredAux.length === 0) {
-      const colSpan = isAdmin ? 40 : 39;
-      UI.tbodyAktivitasAux.innerHTML = `<tr><td colspan="${colSpan}" style="text-align:center; padding:24px; color:#555;">Tidak ada data user terdaftar yang cocok dengan pencarian.</td></tr>`;
+      const colSpan = isAdmin ? 41 : 40;
+      const emptyMsg = auxDisplay.length === 0
+        ? `Belum ada data tarikan Aktivitas untuk periode <strong>${formatMonthLabel(monthKey)}</strong>.`
+        : 'Tidak ada data petugas yang cocok dengan pencarian.';
+      UI.tbodyAktivitasAux.innerHTML = `<tr><td colspan="${colSpan}" style="text-align:center !important; padding:24px !important; color:#555 !important; background-color:#ffffff !important;">${emptyMsg}</td></tr>`;
     } else {
       UI.tbodyAktivitasAux.innerHTML = filteredAux.map(({ row, idx }) => {
         const displayName = row.name || '-';
         const safeName = String(displayName).replace(/"/g, '&quot;');
-        const nameCss = styleObjToInlineCss(row.nameStyle);
+        const effNameSt = mergeStyleWithDefault(row.nameStyle, defNameSt);
+        const nameCss = styleObjToInlineCss(effNameSt);
+        const nameInputCss = styleObjToInputCss(effNameSt);
         const nameCell = isAdmin
-          ? `<input type="text" class="aktivitas-cell-input akt-name-input" data-section="aux" data-row="${idx}" data-field="name" value="${safeName}">`
+          ? `<input type="text" class="aktivitas-cell-input akt-name-input" style="${nameInputCss}" data-section="aux" data-row="${idx}" data-field="name" value="${safeName}">`
           : `<span>${displayName}</span>`;
 
         const dayCells = Array.from({ length: 31 }, (_, d) => {
           const val = row.days && row.days[d] !== undefined ? row.days[d] : '';
           const safeVal = String(val ?? '').replace(/"/g, '&quot;');
-          const cellSt = row.dayStyles && row.dayStyles[d] ? row.dayStyles[d] : null;
-          const cellCss = styleObjToInlineCss(cellSt);
-          const statusCls = (cellSt && cellSt.bg) ? '' : getAktivitasCellClass(val, 'aux');
+          const effDaySt = mergeStyleWithDefault(row.dayStyles && row.dayStyles[d], getDefaultAktivitasDayStyle(val, 'aux'));
+          const cellCss = styleObjToInlineCss(effDaySt);
+          const inputCss = styleObjToInputCss(effDaySt);
+          const statusCls = getAktivitasCellClass(val, 'aux');
           if (isAdmin) {
-            return `<td class="akt-col-day ${statusCls}" id="aktCell_aux_${idx}_${d}" style="${cellCss}"><input type="text" class="aktivitas-cell-input" data-section="aux" data-row="${idx}" data-day="${d}" value="${safeVal}"></td>`;
+            return `<td class="akt-col-day ${statusCls}" id="aktCell_aux_${idx}_${d}" style="${cellCss}"><input type="text" class="aktivitas-cell-input" style="${inputCss}" data-section="aux" data-row="${idx}" data-day="${d}" value="${safeVal}"></td>`;
           }
           return `<td class="akt-col-day ${statusCls}" style="${cellCss}">${val !== '' ? val : ''}</td>`;
         }).join('');
 
+        const phVal = (row.penggunaanHarian !== undefined && row.penggunaanHarian !== '')
+          ? (!isNaN(Number(row.penggunaanHarian)) ? Math.round(Number(row.penggunaanHarian)) : row.penggunaanHarian)
+          : 0;
+
         const sumFields = [
-          { key: 'total', val: row.total ?? 0 },
+          { key: 'total', val: row.total ?? 0, isBeforeSpacer: true },
           { key: 'totalOmni', val: row.totalOmni ?? 0 },
           { key: 'hadir', val: row.hadir ?? 0 },
-          { key: 'penggunaanHarian', val: row.penggunaanHarian ?? 0 },
+          { key: 'penggunaanHarian', val: phVal },
           { key: 'jmlUnder', val: row.jmlUnder ?? 0 },
           { key: 'jmlOver', val: row.jmlOver ?? 0 },
           { key: 'persen', val: formatAktivitasPercent(row.persen ?? '100%') }
@@ -26630,16 +27094,20 @@ function renderAktivitasPage() {
 
         const sumCells = sumFields.map(sf => {
           const sVal = String(sf.val ?? '').replace(/"/g, '&quot;');
-          const sumSt = row.sumStyles && row.sumStyles[sf.key] ? row.sumStyles[sf.key] : null;
-          const sumCss = styleObjToInlineCss(sumSt);
-          if (isAdmin) {
-            return `<td class="akt-col-summary" style="${sumCss}"><input type="text" class="aktivitas-cell-input akt-sum-input" id="aktSum_aux_${idx}_${sf.key}" data-section="aux" data-row="${idx}" data-summary="${sf.key}" value="${sVal}"></td>`;
+          const effSumSt = mergeStyleWithDefault(row.sumStyles && row.sumStyles[sf.key], defASum[sf.key]);
+          const sumCss = styleObjToInlineCss(effSumSt);
+          const sumInputCss = styleObjToInputCss(effSumSt);
+          const cellHtml = isAdmin
+            ? `<td class="akt-col-summary" style="${sumCss}"><input type="text" class="aktivitas-cell-input akt-sum-input" style="${sumInputCss}" id="aktSum_aux_${idx}_${sf.key}" data-section="aux" data-row="${idx}" data-summary="${sf.key}" value="${sVal}"></td>`
+            : `<td class="akt-col-summary" id="aktSum_aux_${idx}_${sf.key}" style="${sumCss}">${sf.val ?? ''}</td>`;
+          if (sf.isBeforeSpacer) {
+            return `${cellHtml}<td class="akt-col-spacer"></td>`;
           }
-          return `<td class="akt-col-summary" id="aktSum_aux_${idx}_${sf.key}" style="${sumCss}">${sf.val ?? ''}</td>`;
+          return cellHtml;
         }).join('');
 
         const actionCell = isAdmin ? `
-          <td style="text-align:center;">
+          <td style="text-align:center !important; background-color:#ffffff !important;">
             <button type="button" class="btn btn-icon btn-sm" onclick="clearAktivitasUserRow('aux', ${idx})" title="Kosongkan Isian Harian ${safeName}">
               <i class="fa-solid fa-eraser" style="color:#d97706;"></i>
             </button>
@@ -26685,13 +27153,17 @@ function handleAktivitasTableInput(e) {
     if (!Array.isArray(row.days)) row.days = new Array(31).fill('');
     row.days[d] = target.value.trim();
 
-    // Update cell color class in-place without losing focus
+    const newDaySt = getDefaultAktivitasDayStyle(row.days[d], section);
+    if (!Array.isArray(row.dayStyles)) row.dayStyles = new Array(31).fill(null);
+    row.dayStyles[d] = newDaySt;
+
+    // Update cell & input style in-place without losing focus
     const td = document.getElementById(`aktCell_${section}_${rowIdx}_${d}`);
     if (td) {
-      td.style.backgroundColor = '';
-      td.style.color = '';
       td.className = `akt-col-day ${getAktivitasCellClass(row.days[d], section)}`;
+      td.setAttribute('style', styleObjToInlineCss(newDaySt));
     }
+    target.setAttribute('style', styleObjToInputCss(newDaySt));
 
     // Recalculate summary columns and update DOM inputs in-place
     if (section === 'online') {
@@ -26719,6 +27191,7 @@ function handleAktivitasTableInput(e) {
     }
   }
 
+  monthBucket._isPulledOrEdited = true;
   data.updatedAt = new Date().toISOString();
   state.saveAktivitasData(data);
   triggerAutoSyncAktivitas();
@@ -26731,6 +27204,7 @@ function clearAktivitasUserRow(section, idx) {
   const rows = section === 'online' ? monthBucket.onlineRows : monthBucket.auxRows;
   if (!rows || !rows[idx]) return;
   rows[idx].days = new Array(31).fill('');
+  rows[idx].dayStyles = Array.from({ length: 31 }, () => getDefaultAktivitasDayStyle('', section));
   if (section === 'online') recalcAktivitasOnlineRow(rows[idx]);
   else recalcAktivitasAuxRow(rows[idx]);
   data.updatedAt = new Date().toISOString();
@@ -26761,7 +27235,11 @@ function resetAktivitasToDefault() {
   const monthKey = getSelectedAktivitasMonth();
   const data = state.getAktivitasData();
   if (!data.byMonth) data.byMonth = {};
-  data.byMonth[monthKey] = buildSeedRowsFromDefault();
+  data.byMonth = {
+    [monthKey]: buildSeedRowsFromDefault()
+  };
+  data.lastPulledMonth = monthKey;
+  data._isolationVersion = 6;
   data.updatedAt = new Date().toISOString();
   state.saveAktivitasData(data);
   triggerAutoSyncAktivitas();
@@ -26817,11 +27295,19 @@ function initAktivitasEvents() {
     });
   }
   if (UI.searchAktivitasInput) {
-    UI.searchAktivitasInput.addEventListener('input', () => renderAktivitasPage());
+    UI.searchAktivitasInput.addEventListener('input', () => {
+      if (typeof saveUserControl === 'function') {
+        saveUserControl('searchAktivitasInput', UI.searchAktivitasInput.value);
+      }
+      renderAktivitasPage();
+    });
   }
   if (UI.btnClearSearchAktivitas) {
     UI.btnClearSearchAktivitas.addEventListener('click', () => {
       if (UI.searchAktivitasInput) UI.searchAktivitasInput.value = '';
+      if (typeof saveUserControl === 'function') {
+        saveUserControl('searchAktivitasInput', '');
+      }
       renderAktivitasPage();
     });
   }
