@@ -3693,6 +3693,7 @@ function renderAppView() {
     document.body.setAttribute('data-display-mode', 'dark');
 
     // Reset preferensi zoom dan sidebar collapse saat di layar login
+    if (typeof closeMobileBottomSheet === 'function') closeMobileBottomSheet();
     applySidebarCollapse(false, false);
     applyDashboardZoom(100, false);
     return;
@@ -3737,6 +3738,17 @@ function renderAppView() {
   // Sidebar profile & mode notice
   UI.sidebarUserName.textContent = u.fullName;
   UI.sidebarUserAvatar.src = u.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80';
+
+  // Mobile Bottom Menu Sheet Profile Info
+  const mobileSheetUserName = document.getElementById('mobileSheetUserName');
+  const mobileSheetUserAvatar = document.getElementById('mobileSheetUserAvatar');
+  const mobileSheetUserRole = document.getElementById('mobileSheetUserRole');
+  if (mobileSheetUserName) mobileSheetUserName.textContent = u.fullName;
+  if (mobileSheetUserAvatar) mobileSheetUserAvatar.src = u.avatar || 'assets/hotwheels_tire.jpg';
+  if (mobileSheetUserRole) {
+    mobileSheetUserRole.className = isAdmin ? 'badge badge-admin' : 'badge badge-user';
+    mobileSheetUserRole.innerHTML = isAdmin ? '<i class="fa-solid fa-crown"></i> Admin' : '<i class="fa-solid fa-user"></i> User';
+  }
   
   if (isAdmin) {
     UI.sidebarUserRoleBadge.classList.remove('hidden');
@@ -4173,7 +4185,7 @@ function navigateToPage(pageId, save = true) {
     }
   });
 
-  // Update active mobile bottom dock nav
+  // Update active mobile bottom dock nav & bottom sheet cards
   document.querySelectorAll('.mobile-dock-item').forEach(item => {
     const isMatch = item.getAttribute('data-page') === pageId;
     item.classList.toggle('active', isMatch);
@@ -4183,6 +4195,14 @@ function navigateToPage(pageId, save = true) {
       } catch (e) {}
     }
   });
+
+  document.querySelectorAll('.mobile-sheet-card').forEach(card => {
+    card.classList.toggle('active', card.getAttribute('data-page') === pageId);
+  });
+
+  if (save && typeof closeMobileBottomSheet === 'function') {
+    closeMobileBottomSheet();
+  }
 
   // Scroll to top on explicit page switch on mobile handphone
   if (save && typeof window !== 'undefined' && window.innerWidth <= 768 && typeof window.scrollTo === 'function') {
@@ -18867,6 +18887,40 @@ function closeMobileSidebar() {
   }
 }
 
+let isMobileBottomSheetOpen = false;
+
+function openMobileBottomSheet() {
+  isMobileBottomSheetOpen = true;
+  const sheet = document.getElementById('mobileBottomMenuSheet');
+  const backdrop = document.getElementById('mobileDockBackdrop');
+  const btn = document.getElementById('mobileDockMenuBtn');
+  const icon = document.getElementById('mobileDockMenuIcon');
+  if (sheet) sheet.classList.remove('hidden');
+  if (backdrop) backdrop.classList.remove('hidden');
+  if (btn) btn.classList.add('active');
+  if (icon) icon.className = 'fa-solid fa-xmark';
+}
+
+function closeMobileBottomSheet() {
+  isMobileBottomSheetOpen = false;
+  const sheet = document.getElementById('mobileBottomMenuSheet');
+  const backdrop = document.getElementById('mobileDockBackdrop');
+  const btn = document.getElementById('mobileDockMenuBtn');
+  const icon = document.getElementById('mobileDockMenuIcon');
+  if (sheet) sheet.classList.add('hidden');
+  if (backdrop) backdrop.classList.add('hidden');
+  if (btn) btn.classList.remove('active');
+  if (icon) icon.className = 'fa-solid fa-grip';
+}
+
+function toggleMobileBottomSheet() {
+  if (isMobileBottomSheetOpen) {
+    closeMobileBottomSheet();
+  } else {
+    openMobileBottomSheet();
+  }
+}
+
 function initSidebarCollapse() {
   const initialCollapsed = state.currentUser
     ? getUserSidebarCollapsed(state.currentUser)
@@ -18884,49 +18938,60 @@ function initSidebarCollapse() {
   if (mobileDockMenuBtn) {
     mobileDockMenuBtn.addEventListener('click', (e) => {
       e.stopPropagation();
-      toggleSidebarCollapse();
+      toggleMobileBottomSheet();
     });
   }
 
-  document.querySelectorAll('.mobile-dock-item').forEach(item => {
+  const btnCloseMobileSheet = document.getElementById('btnCloseMobileSheet');
+  if (btnCloseMobileSheet) {
+    btnCloseMobileSheet.addEventListener('click', (e) => {
+      e.stopPropagation();
+      closeMobileBottomSheet();
+    });
+  }
+
+  const mobileSheetDragBar = document.getElementById('mobileSheetDragBar');
+  if (mobileSheetDragBar) {
+    mobileSheetDragBar.addEventListener('click', (e) => {
+      e.stopPropagation();
+      closeMobileBottomSheet();
+    });
+  }
+
+  const mobileDockBackdrop = document.getElementById('mobileDockBackdrop');
+  if (mobileDockBackdrop) {
+    mobileDockBackdrop.addEventListener('click', () => {
+      closeMobileBottomSheet();
+    });
+  }
+
+  const btnLogoutMobileSheet = document.getElementById('btnLogoutMobileSheet');
+  if (btnLogoutMobileSheet) {
+    btnLogoutMobileSheet.addEventListener('click', () => {
+      closeMobileBottomSheet();
+      handleLogout();
+    });
+  }
+
+  document.querySelectorAll('.mobile-dock-item, .mobile-sheet-card').forEach(item => {
     item.addEventListener('click', () => {
       const pageId = item.getAttribute('data-page');
       if (pageId) navigateToPage(pageId);
     });
   });
 
-  // Mobile Viewport Detection & Touch Swipe Gesture for Sidebar Drawer on Handphone
+  // Mobile Viewport Detection
   const updateMobileViewportClass = () => {
     const isMob = typeof window !== 'undefined' && window.innerWidth <= 768;
     if (document.body) {
       document.body.classList.toggle('is-mobile-handphone', isMob);
     }
+    if (!isMob && isMobileBottomSheetOpen) {
+      closeMobileBottomSheet();
+    }
   };
   updateMobileViewportClass();
   window.addEventListener('resize', updateMobileViewportClass);
-
-  let touchStartX = 0;
-  let touchStartY = 0;
-  document.addEventListener('touchstart', (e) => {
-    if (!e.touches || e.touches.length !== 1) return;
-    touchStartX = e.touches[0].clientX;
-    touchStartY = e.touches[0].clientY;
-  }, { passive: true });
-
-  document.addEventListener('touchend', (e) => {
-    if (typeof window === 'undefined' || window.innerWidth > 768) return;
-    if (!e.changedTouches || e.changedTouches.length !== 1) return;
-    const dx = e.changedTouches[0].clientX - touchStartX;
-    const dy = Math.abs(e.changedTouches[0].clientY - touchStartY);
-    if (dy > 45) return; // Ignore vertical scrolling
-    // Swipe right from left edge/rail to expand sidebar drawer
-    if (isSidebarCollapsed && touchStartX <= 64 && dx > 60) {
-      applySidebarCollapse(false, true);
-    } else if (!isSidebarCollapsed && dx < -60) {
-      // Swipe left when drawer is open to collapse
-      closeMobileSidebar();
-    }
-  }, { passive: true });
 
   if (UI.sidebarBrandClickable) {
     UI.sidebarBrandClickable.addEventListener('click', (e) => {
@@ -18974,15 +19039,6 @@ function applySidebarCollapse(collapsed, save = true) {
   // Pada mobile/gadget, kelola tampilan overlay jika menu diperbesar
   if (window.innerWidth <= 768 && UI.sidebarOverlay) {
     UI.sidebarOverlay.classList.toggle('active', !collapsed);
-  }
-
-  const mobileDockMenuBtn = document.getElementById('mobileDockMenuBtn');
-  const mobileDockMenuIcon = document.getElementById('mobileDockMenuIcon');
-  if (mobileDockMenuBtn) {
-    mobileDockMenuBtn.classList.toggle('active', !collapsed);
-  }
-  if (mobileDockMenuIcon) {
-    mobileDockMenuIcon.className = collapsed ? 'fa-solid fa-bars-staggered' : 'fa-solid fa-xmark';
   }
 
   if (save && state.currentUser) {

@@ -4915,19 +4915,104 @@
 
     </div>
 
-    <!-- ==================== FUTURISTIC MOBILE CYBER BOTTOM NAVIGATION DOCK ==================== -->
-    <nav class="mobile-bottom-dock" id="mobileBottomDock" aria-label="Navigasi Cepat Mobile">
+    <!-- ==================== FUTURISTIC MOBILE BOTTOM-FOCUSED NAVIGATION SYSTEM ==================== -->
+    <div class="mobile-dock-backdrop hidden" id="mobileDockBackdrop"></div>
+
+    <nav class="mobile-bottom-dock" id="mobileBottomDock" aria-label="Navigasi Menu Bawah Mobile">
+      <!-- Expandable Bottom Sheet containing ALL Menu Choices in a Responsive Grid at the Bottom -->
+      <div class="mobile-bottom-menu-sheet hidden" id="mobileBottomMenuSheet" role="dialog" aria-label="Semua Pilihan Menu">
+        <div class="bottom-sheet-drag-bar" id="mobileSheetDragBar">
+          <span class="bottom-sheet-pill"></span>
+        </div>
+
+        <div class="bottom-sheet-header">
+          <div class="bottom-sheet-user-meta">
+            <img src="assets/hotwheels_tire.jpg" alt="DRIVE" class="bottom-sheet-brand-logo" id="mobileSheetUserAvatar">
+            <div class="bottom-sheet-user-text">
+              <strong id="mobileSheetUserName">DRIVE Menu</strong>
+              <span class="badge badge-admin" id="mobileSheetUserRole">Menu Navigasi</span>
+            </div>
+          </div>
+          <div class="bottom-sheet-header-actions">
+            <button type="button" class="btn-mobile-sheet-logout" id="btnLogoutMobileSheet" title="Keluar Sesi">
+              <i class="fa-solid fa-power-off"></i>
+              <span>Keluar</span>
+            </button>
+            <button type="button" class="btn-mobile-sheet-close" id="btnCloseMobileSheet" aria-label="Tutup Panel Menu">
+              <i class="fa-solid fa-chevron-down"></i>
+            </button>
+          </div>
+        </div>
+
+        <div class="bottom-sheet-section-label">PILIHAN MENU UTAMA</div>
+        <div class="bottom-sheet-grid" id="mobileBottomSheetGrid">
+          <button type="button" class="mobile-sheet-card active" data-page="overview">
+            <div class="sheet-card-icon"><i class="fa-solid fa-chart-pie"></i></div>
+            <span class="sheet-card-label">Ringkasan</span>
+          </button>
+          <button type="button" class="mobile-sheet-card" data-page="aktivitas">
+            <div class="sheet-card-icon"><i class="fa-solid fa-calendar-check"></i></div>
+            <span class="sheet-card-label">Aktivitas</span>
+          </button>
+          <button type="button" class="mobile-sheet-card" data-page="update-pa">
+            <div class="sheet-card-icon"><i class="fa-solid fa-clipboard-check"></i></div>
+            <span class="sheet-card-label">Update PA</span>
+          </button>
+          <button type="button" class="mobile-sheet-card" data-page="ca">
+            <div class="sheet-card-icon"><i class="fa-solid fa-user-check"></i></div>
+            <span class="sheet-card-label">CA</span>
+          </button>
+          <button type="button" class="mobile-sheet-card" data-page="tiket">
+            <div class="sheet-card-icon"><i class="fa-solid fa-ticket"></i></div>
+            <span class="sheet-card-label">Tiket</span>
+          </button>
+          <button type="button" class="mobile-sheet-card" data-page="aht">
+            <div class="sheet-card-icon"><i class="fa-solid fa-hourglass-half"></i></div>
+            <span class="sheet-card-label">AHT</span>
+          </button>
+          <button type="button" class="mobile-sheet-card" data-page="art">
+            <div class="sheet-card-icon"><i class="fa-solid fa-bolt-lightning"></i></div>
+            <span class="sheet-card-label">ART</span>
+          </button>
+          <button type="button" class="mobile-sheet-card" data-page="finding">
+            <div class="sheet-card-icon"><i class="fa-solid fa-magnifying-glass-chart"></i></div>
+            <span class="sheet-card-label">Finding</span>
+          </button>
+          <button type="button" class="mobile-sheet-card" data-page="timer">
+            <div class="sheet-card-icon"><i class="fa-solid fa-stopwatch-20"></i></div>
+            <span class="sheet-card-label">Timer</span>
+            <span class="sheet-card-tag">Live</span>
+          </button>
+          <button type="button" class="mobile-sheet-card" data-page="typing-test">
+            <div class="sheet-card-icon"><i class="fa-solid fa-gauge-high"></i></div>
+            <span class="sheet-card-label">Typing Test</span>
+            <span class="sheet-card-tag tag-game">Game</span>
+          </button>
+          <button type="button" class="mobile-sheet-card" data-page="quiz">
+            <div class="sheet-card-icon"><i class="fa-solid fa-shield-halved"></i></div>
+            <span class="sheet-card-label">Quiz</span>
+            <span class="sheet-card-tag tag-quiz">Battle</span>
+          </button>
+          <button type="button" class="mobile-sheet-card" data-page="settings">
+            <div class="sheet-card-icon"><i class="fa-regular fa-id-badge"></i></div>
+            <span class="sheet-card-label">Profil Akun</span>
+          </button>
+          <button type="button" class="mobile-sheet-card mobile-dock-admin-only" data-page="user-management">
+            <div class="sheet-card-icon"><i class="fa-solid fa-users-gear"></i></div>
+            <span class="sheet-card-label">Manajemen Team</span>
+            <span class="sheet-card-tag tag-admin">Admin</span>
+          </button>
+          <button type="button" class="mobile-sheet-card mobile-dock-admin-only" data-page="activity-log">
+            <div class="sheet-card-icon"><i class="fa-solid fa-clock-rotate-left"></i></div>
+            <span class="sheet-card-label">Log Aktivitas</span>
+            <span class="sheet-card-tag tag-admin">Admin</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Always-Visible Bottom Navigation Bar (100% Full Width at Bottom) -->
       <div class="mobile-dock-glow-line"></div>
       <div class="mobile-dock-inner">
-        <button type="button" class="mobile-dock-menu-trigger" id="mobileDockMenuBtn" aria-label="Buka Menu Sidebar" title="Menu Lengkap">
-          <div class="dock-icon-orb">
-            <i class="fa-solid fa-bars-staggered" id="mobileDockMenuIcon"></i>
-          </div>
-          <span class="dock-item-label">Menu</span>
-        </button>
-
-        <div class="mobile-dock-divider"></div>
-
         <div class="mobile-dock-scroll-track" id="mobileDockScrollTrack">
           <button type="button" class="mobile-dock-item active" data-page="overview" aria-label="Ringkasan">
             <div class="dock-item-icon"><i class="fa-solid fa-chart-pie"></i></div>
@@ -4982,6 +5067,15 @@
             <span class="dock-item-label">Log</span>
           </button>
         </div>
+
+        <div class="mobile-dock-divider"></div>
+
+        <button type="button" class="mobile-dock-menu-trigger" id="mobileDockMenuBtn" aria-label="Tampilkan Semua Pilihan Menu di Bawah" title="Semua Menu">
+          <div class="dock-icon-orb">
+            <i class="fa-solid fa-grip" id="mobileDockMenuIcon"></i>
+          </div>
+          <span class="dock-item-label">Semua</span>
+        </button>
       </div>
     </nav>
   </div>
