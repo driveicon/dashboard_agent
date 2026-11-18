@@ -205,9 +205,9 @@ console.log('[PASS] caCardTopUser is visible for Admin.');
 state.currentUser = state.users[3]; // Sugeng Riyadi
 global.window.renderCaPage();
 
-assert.strictEqual(UI.caStatTopUser.textContent, 'Rofi Andiyono',
-  `Regular User should also see "Rofi Andiyono" as Top Performer, got: ${UI.caStatTopUser.textContent}`);
-console.log('[PASS] Regular User mode displays Top Performer: Rofi Andiyono');
+assert.strictEqual(UI.caStatTopUser.textContent, 'Sugeng Riyadi',
+  `Regular User should only see their own name "Sugeng Riyadi" (never another user's name), got: ${UI.caStatTopUser.textContent}`);
+console.log('[PASS] Regular User mode strictly displays own name: Sugeng Riyadi');
 
 assert(!UI.caCardTopUser.classList.contains('hidden'), 'caCardTopUser should NOT be hidden for Regular User');
 console.log('[PASS] caCardTopUser remains visible for Regular User.');
