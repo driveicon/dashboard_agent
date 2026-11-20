@@ -698,12 +698,60 @@ class AppState {
     return rawLogs;
   }
 
+  syncCollectionDeletedIds(key, newList) {
+    try {
+      const prevList = this.safeGetStorage(key, []);
+      const safeNew = Array.isArray(newList) ? newList : [];
+      const newIds = new Set(safeNew.map(item => (item && item.id) ? String(item.id) : '').filter(Boolean));
+      if (Array.isArray(prevList)) {
+        prevList.forEach(oldItem => {
+          const oldId = (oldItem && oldItem.id) ? String(oldItem.id) : '';
+          if (oldId && !newIds.has(oldId)) {
+            this.trackDeletedId(key, oldId);
+          }
+        });
+      }
+      newIds.forEach(id => {
+        this.clearDeletedId(key, id);
+      });
+    } catch (e) {}
+  }
+
+  markSpreadsheetPullSnapshot(key, pulledList) {
+    const pullTs = Date.now();
+    const safeList = Array.isArray(pulledList) ? pulledList : [];
+    try {
+      localStorage.setItem('vortex_last_pull_ts_' + key, String(pullTs));
+      try {
+        sessionStorage.setItem('backup_vortex_last_pull_ts_' + key, String(pullTs));
+      } catch (e) {}
+    } catch (e) {}
+
+    this.syncCollectionDeletedIds(key, safeList);
+
+    const stamped = safeList.map(item => ({
+      ...item,
+      _pulledAt: pullTs,
+      _updatedAtMs: pullTs
+    }));
+
+    try {
+      const ids = stamped.map(item => (item && item.id) ? String(item.id) : '').filter(Boolean);
+      localStorage.setItem('vortex_synced_ids_' + key, JSON.stringify(ids));
+    } catch (e) {}
+
+    return stamped;
+  }
+
   saveCaLogs(logs) {
+    const nowMs = Date.now();
     let normalized = Array.isArray(logs) ? logs : [];
     if (typeof canonicalizeCaLog === 'function') {
       const users = this.getUsers ? this.getUsers() : [];
       normalized = normalized.map(l => canonicalizeCaLog(l, users));
     }
+    normalized = normalized.map(l => (l && typeof l === 'object') ? { ...l, _updatedAtMs: l._updatedAtMs || nowMs } : l);
+    this.syncCollectionDeletedIds('vortex_ca_logs', normalized);
     this.safeSetStorage('vortex_ca_logs', normalized);
   }
 
@@ -734,7 +782,10 @@ class AppState {
   }
 
   saveTikets(tikets) {
-    this.safeSetStorage('vortex_tikets', tikets);
+    const nowMs = Date.now();
+    const normalized = (Array.isArray(tikets) ? tikets : []).map(t => (t && typeof t === 'object') ? { ...t, _updatedAtMs: t._updatedAtMs || nowMs } : t);
+    this.syncCollectionDeletedIds('vortex_tikets', normalized);
+    this.safeSetStorage('vortex_tikets', normalized);
   }
 
   getTiketGSheetConfig() {
@@ -764,7 +815,10 @@ class AppState {
   }
 
   saveAhtLogs(logs) {
-    this.safeSetStorage('vortex_aht_logs', logs);
+    const nowMs = Date.now();
+    const normalized = (Array.isArray(logs) ? logs : []).map(l => (l && typeof l === 'object') ? { ...l, _updatedAtMs: l._updatedAtMs || nowMs } : l);
+    this.syncCollectionDeletedIds('vortex_aht_logs', normalized);
+    this.safeSetStorage('vortex_aht_logs', normalized);
   }
 
   getAhtGSheetConfig() {
@@ -794,7 +848,10 @@ class AppState {
   }
 
   saveArtLogs(logs) {
-    this.safeSetStorage('vortex_art_logs', logs);
+    const nowMs = Date.now();
+    const normalized = (Array.isArray(logs) ? logs : []).map(l => (l && typeof l === 'object') ? { ...l, _updatedAtMs: l._updatedAtMs || nowMs } : l);
+    this.syncCollectionDeletedIds('vortex_art_logs', normalized);
+    this.safeSetStorage('vortex_art_logs', normalized);
   }
 
   getArtGSheetConfig() {
@@ -821,6 +878,7 @@ class AppState {
 
   getFindings() {
     const raw = this.safeGetStorage('vortex_findings', []);
+    if (!Array.isArray(raw)) return [];
     return raw.map(item => {
       let level = item.deviationLevel;
       if (level === 'Minor') level = 'Reminder 1';
@@ -839,7 +897,10 @@ class AppState {
   }
 
   saveFindings(findings) {
-    this.safeSetStorage('vortex_findings', findings);
+    const nowMs = Date.now();
+    const normalized = (Array.isArray(findings) ? findings : []).map(f => (f && typeof f === 'object') ? { ...f, _updatedAtMs: f._updatedAtMs || nowMs } : f);
+    this.syncCollectionDeletedIds('vortex_findings', normalized);
+    this.safeSetStorage('vortex_findings', normalized);
   }
 
   getFindingGSheetConfig() {
@@ -4600,10 +4661,58 @@ function isLogMatchUser(log, user) {
   return false;
 }
 
+function normalizeSpreadsheetDate(rawDate) {
+  const s = String(rawDate || '').trim();
+  if (!s) return '';
+  const isoMatch = s.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})/);
+  if (isoMatch) {
+    return `${isoMatch[1]}-${String(isoMatch[2]).padStart(2, '0')}-${String(isoMatch[3]).padStart(2, '0')}`;
+  }
+  const dmyMatch = s.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})/);
+  if (dmyMatch) {
+    const p1 = parseInt(dmyMatch[1], 10);
+    const p2 = parseInt(dmyMatch[2], 10);
+    const yr = dmyMatch[3];
+    if (p1 > 12 && p2 <= 12) {
+      return `${yr}-${String(p2).padStart(2, '0')}-${String(p1).padStart(2, '0')}`;
+    }
+    if (p2 > 12 && p1 <= 12) {
+      return `${yr}-${String(p1).padStart(2, '0')}-${String(p2).padStart(2, '0')}`;
+    }
+    return `${yr}-${String(p2).padStart(2, '0')}-${String(p1).padStart(2, '0')}`;
+  }
+  return s;
+}
+
+function alignMonthFilterToPulledData(normalizedLogs, filterEl, filterId) {
+  if (typeof updateDynamicMonthDropdowns === 'function') {
+    updateDynamicMonthDropdowns();
+  }
+  if (!Array.isArray(normalizedLogs) || normalizedLogs.length === 0 || !filterEl) return;
+  const pulledMonths = Array.from(new Set(
+    normalizedLogs
+      .map(r => String((r && r.date) || '').slice(0, 7))
+      .filter(ym => /^\d{4}-\d{2}$/.test(ym))
+  )).sort().reverse();
+  if (pulledMonths.length > 0) {
+    const curMonth = filterEl.value;
+    if (curMonth && curMonth !== 'ALL' && !pulledMonths.includes(curMonth)) {
+      const targetMonth = pulledMonths[0];
+      if (!filterEl.options || filterEl.options.length === 0 || Array.from(filterEl.options).some(o => o.value === targetMonth)) {
+        filterEl.value = targetMonth;
+      }
+      if (filterId && typeof saveUserControl === 'function') {
+        saveUserControl(filterId, targetMonth);
+      }
+    }
+  }
+}
+
 window.resolveCaUserObj = resolveCaUserObj;
 window.canonicalizeCaLog = canonicalizeCaLog;
 window.resolveSpreadsheetUser = resolveSpreadsheetUser;
 window.isLogMatchUser = isLogMatchUser;
+window.normalizeSpreadsheetDate = normalizeSpreadsheetDate;
 
 function calculateOverviewCombinedData() {
   const users = (state.getUsers ? state.getUsers() : []).filter(u => u && u.role !== 'admin');
@@ -12577,46 +12686,64 @@ async function pullCaFromGoogleSheets() {
 
   try {
     let pulledRows = null;
+    const rawSheetSource = config.sheetId || (config.webAppUrl && config.webAppUrl.includes('docs.google.com/spreadsheets') ? config.webAppUrl : '');
+    const cleanId = rawSheetSource ? extractGoogleSpreadsheetId(rawSheetSource) : '';
+    const gidMatch = String(rawSheetSource || '').match(/[#&?]gid=([0-9]+)/);
+    const gid = gidMatch ? gidMatch[1] : '';
 
-    if (config.webAppUrl) {
-      const getUrl = config.webAppUrl + (config.webAppUrl.includes('?') ? '&' : '?') + 'action=get_all';
-      const resp = await fetch(getUrl, { method: 'GET', mode: 'cors' });
-      if (resp.ok) {
-        const json = await resp.json();
-        if (json && json.success && Array.isArray(json.data)) {
-          pulledRows = json.data;
+    if (config.webAppUrl && !config.webAppUrl.includes('docs.google.com/spreadsheets')) {
+      try {
+        const getUrl = config.webAppUrl + (config.webAppUrl.includes('?') ? '&' : '?') + 'action=get_all';
+        const resp = await fetch(getUrl, { method: 'GET', mode: 'cors' });
+        if (resp.ok) {
+          const json = await resp.json();
+          if (json && json.success !== false) {
+            const arr = Array.isArray(json.data) ? json.data : (Array.isArray(json.logs) ? json.logs : (Array.isArray(json.rows) ? json.rows : null));
+            if (arr !== null) {
+              pulledRows = arr;
+            }
+          }
         }
+      } catch (eWeb) {
+        if (!cleanId) throw eWeb;
+        console.warn('CA WebApp pull fallback to CSV:', eWeb);
       }
     }
 
     // Fallback to public sheet CSV export if Web App did not return JSON or if only sheetId is present
-    if (!pulledRows && config.sheetId) {
-      const cleanId = extractGoogleSpreadsheetId(config.sheetId);
-      const csvUrl = `https://docs.google.com/spreadsheets/d/${cleanId}/export?format=csv&sheet=${encodeURIComponent(config.sheetName || 'CA_Data')}`;
+    if (pulledRows === null && cleanId) {
+      const csvUrl = gid
+        ? `https://docs.google.com/spreadsheets/d/${cleanId}/export?format=csv&gid=${gid}`
+        : `https://docs.google.com/spreadsheets/d/${cleanId}/export?format=csv&sheet=${encodeURIComponent(config.sheetName || 'CA_Data')}`;
       const resp = await fetch(csvUrl);
       if (resp.ok) {
         const csvText = await resp.text();
-        const lines = csvText.split(/\r?\n/).filter(l => l.trim().length > 0);
-        if (lines.length > 1) {
+        if (!/^\s*<!DOCTYPE\s+html/i.test(csvText) && !/^\s*<html/i.test(csvText)) {
           pulledRows = [];
-          for (let i = 1; i < lines.length; i++) {
-            const cols = parseCsvRow(lines[i]);
-            if (cols[0]) {
-              const rawIdentifier = cols[2] || '';
+          const lines = csvText.split(/\r?\n/).filter(l => l.trim().length > 0);
+          if (lines.length > 1) {
+            for (let i = 1; i < lines.length; i++) {
+              const cols = parseCsvRow(lines[i]);
+              const c0 = String(cols[0] || '').trim();
+              const c1 = String(cols[1] || '').trim();
+              const c2 = String(cols[2] || '').trim();
+              if (!c0 && !c1 && !c2) continue;
+              if (c0.toLowerCase() === 'id evaluasi') continue;
+              const rawIdentifier = c2;
               pulledRows.push({
-                id: cols[0],
-                date: cols[1] || '',
+                id: c0 || `ca_row_${i}`,
+                date: c1,
                 username: rawIdentifier,
                 userFullName: rawIdentifier,
-                department: cols[3] || 'CSO INBOUND',
-                channel: cols[4] || 'Live Chat WA',
-                score: parseFloat(cols[5]) || 0,
-                grade: cols[6] || 'Baik',
-                focusParam: cols[7] || '',
-                status: cols[8] || 'Terverifikasi',
-                notes: cols[9] || '',
-                createdAt: cols[10] || '',
-                createdBy: cols[11] || ''
+                department: String(cols[3] || '').trim() || 'CSO INBOUND',
+                channel: String(cols[4] || '').trim() || 'Live Chat WA',
+                score: parseFloat(String(cols[5] || '').replace(',', '.')) || 0,
+                grade: String(cols[6] || '').trim() || 'Baik',
+                focusParam: String(cols[7] || '').trim(),
+                status: String(cols[8] || '').trim() || 'Terverifikasi',
+                notes: String(cols[9] || '').trim(),
+                createdAt: String(cols[10] || '').trim(),
+                createdBy: String(cols[11] || '').trim()
               });
             }
           }
@@ -12624,12 +12751,23 @@ async function pullCaFromGoogleSheets() {
       }
     }
 
-    if (pulledRows && pulledRows.length > 0) {
-      const normalizedLogs = pulledRows.map(row => {
+    if (Array.isArray(pulledRows)) {
+      const validRows = pulledRows.filter(row => {
+        if (!row || typeof row !== 'object') return false;
+        const hasId = Boolean(String(row.id || '').trim());
+        const hasUser = Boolean(String(row.username || row.userFullName || '').trim());
+        const hasDate = Boolean(String(row.date || '').trim());
+        return hasId || hasUser || hasDate;
+      });
+
+      const normalizedLogs = validRows.map((row, idx) => {
         const rawUser = row.username || row.userFullName || '';
         const uInfo = resolveSpreadsheetUser(rawUser, row.department);
+        const normDate = normalizeSpreadsheetDate(row.date);
         return {
           ...row,
+          id: String(row.id || '').trim() || `ca_row_${idx + 1}`,
+          date: normDate,
           userId: uInfo.userId || row.userId || '',
           username: uInfo.username,
           userFullName: uInfo.fullName,
@@ -12637,15 +12775,30 @@ async function pullCaFromGoogleSheets() {
         };
       });
 
-      state.saveCaLogs(normalizedLogs);
+      const stampedLogs = state.markSpreadsheetPullSnapshot('vortex_ca_logs', normalizedLogs);
+      if (state.selectedCaIds) state.selectedCaIds.clear();
+      state.saveCaLogs(stampedLogs);
+
       const now = new Date();
       const formatted = `${String(now.getDate()).padStart(2, '0')}/${String(now.getMonth() + 1).padStart(2, '0')}/${now.getFullYear()} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
       config.lastSyncTime = formatted;
+      config.lastSyncStatus = 'success';
       state.saveCaGSheetConfig(config);
+
+      if (UI.labelCaGSheetModalTotalCount) UI.labelCaGSheetModalTotalCount.textContent = `${stampedLogs.length} Baris`;
+      if (UI.labelCaGSheetModalLastSync) UI.labelCaGSheetModalLastSync.textContent = formatted;
+
+      alignMonthFilterToPulledData(stampedLogs, UI.filterCaMonth, 'filterCaMonth');
       renderCaPage();
-      showToast('Tarik Data Berhasil', `Berhasil mengambil <strong>${normalizedLogs.length} data CA</strong> dari Google Spreadsheet.`, 'success');
+      if (typeof renderOverviewPage === 'function' && state.currentPage === 'overview') renderOverviewPage();
+
+      if (stampedLogs.length > 0) {
+        showToast('Tarik Data Berhasil', `Berhasil mengambil <strong>${stampedLogs.length} data CA</strong> terbaru dari Google Spreadsheet.`, 'success');
+      } else {
+        showToast('Sinkronisasi Spreadsheet Kosong', 'Data CA pada Google Spreadsheet kosong (0 baris). Data CA pada website telah dihapus mengikuti spreadsheet.', 'info');
+      }
     } else {
-      showToast('Data Kosong / Tidak Terbaca', 'Tidak ada data CA yang ditemukan pada Google Spreadsheet atau sheet masih kosong.', 'info');
+      showToast('Data Kosong / Tidak Terbaca', 'Tidak dapat membaca data CA dari Google Spreadsheet. Pastikan akses Web App / Sheet disetel "Anyone".', 'warning');
     }
   } catch (err) {
     console.error('Error pulling from Google Sheets:', err);
@@ -14218,42 +14371,60 @@ async function pullTiketFromGoogleSheets() {
 
   try {
     let pulledRows = null;
+    const rawSheetSource = config.sheetId || (config.webAppUrl && config.webAppUrl.includes('docs.google.com/spreadsheets') ? config.webAppUrl : '');
+    const cleanId = rawSheetSource ? extractGoogleSpreadsheetId(rawSheetSource) : '';
+    const gidMatch = String(rawSheetSource || '').match(/[#&?]gid=([0-9]+)/);
+    const gid = gidMatch ? gidMatch[1] : '';
 
-    if (config.webAppUrl) {
-      const getUrl = config.webAppUrl + (config.webAppUrl.includes('?') ? '&' : '?') + 'action=get_all';
-      const resp = await fetch(getUrl, { method: 'GET', mode: 'cors' });
-      if (resp.ok) {
-        const json = await resp.json();
-        if (json && json.success && Array.isArray(json.data)) {
-          pulledRows = json.data;
+    if (config.webAppUrl && !config.webAppUrl.includes('docs.google.com/spreadsheets')) {
+      try {
+        const getUrl = config.webAppUrl + (config.webAppUrl.includes('?') ? '&' : '?') + 'action=get_all';
+        const resp = await fetch(getUrl, { method: 'GET', mode: 'cors' });
+        if (resp.ok) {
+          const json = await resp.json();
+          if (json && json.success !== false) {
+            const arr = Array.isArray(json.data) ? json.data : (Array.isArray(json.logs) ? json.logs : (Array.isArray(json.rows) ? json.rows : null));
+            if (arr !== null) {
+              pulledRows = arr;
+            }
+          }
         }
+      } catch (eWeb) {
+        if (!cleanId) throw eWeb;
+        console.warn('Tiket WebApp pull fallback to CSV:', eWeb);
       }
     }
 
     // Fallback to public sheet CSV export if Web App did not return JSON or if only sheetId is present
-    if (!pulledRows && config.sheetId) {
-      const cleanId = extractGoogleSpreadsheetId(config.sheetId);
-      const csvUrl = `https://docs.google.com/spreadsheets/d/${cleanId}/export?format=csv&sheet=${encodeURIComponent(config.sheetName || 'Tiket_Data')}`;
+    if (pulledRows === null && cleanId) {
+      const csvUrl = gid
+        ? `https://docs.google.com/spreadsheets/d/${cleanId}/export?format=csv&gid=${gid}`
+        : `https://docs.google.com/spreadsheets/d/${cleanId}/export?format=csv&sheet=${encodeURIComponent(config.sheetName || 'Tiket_Data')}`;
       const resp = await fetch(csvUrl);
       if (resp.ok) {
         const csvText = await resp.text();
-        const lines = csvText.split(/\r?\n/).filter(l => l.trim().length > 0);
-        if (lines.length > 1) {
+        if (!/^\s*<!DOCTYPE\s+html/i.test(csvText) && !/^\s*<html/i.test(csvText)) {
           pulledRows = [];
-          for (let i = 1; i < lines.length; i++) {
-            const cols = parseCsvRow(lines[i]);
-            if (cols[0]) {
+          const lines = csvText.split(/\r?\n/).filter(l => l.trim().length > 0);
+          if (lines.length > 1) {
+            for (let i = 1; i < lines.length; i++) {
+              const cols = parseCsvRow(lines[i]);
+              const c0 = String(cols[0] || '').trim();
+              const c1 = String(cols[1] || '').trim();
+              const c2 = String(cols[2] || '').trim();
+              if (!c0 && !c1 && !c2) continue;
+              if (c0.toLowerCase().startsWith('id log') || c0.toLowerCase() === 'id tiket') continue;
               pulledRows.push({
-                id: cols[0],
-                date: cols[1] || '',
-                userFullName: cols[2] || '',
-                department: cols[3] || 'CSO INBOUND',
-                category: cols[4] || '-',
+                id: c0 || `tkt_row_${i}`,
+                date: c1,
+                userFullName: c2,
+                department: String(cols[3] || '').trim() || 'CSO INBOUND',
+                category: String(cols[4] || '').trim() || '-',
                 ticketCount: parseInt(cols[5], 10) || 0,
                 solvedTickets: parseInt(cols[6], 10) || parseInt(cols[5], 10) || 0,
                 slaRate: parseFloat(cols[7]) || 100,
-                notes: cols[8] || '',
-                createdAt: cols[9] || ''
+                notes: String(cols[8] || '').trim(),
+                createdAt: String(cols[9] || '').trim()
               });
             }
           }
@@ -14261,27 +14432,54 @@ async function pullTiketFromGoogleSheets() {
       }
     }
 
-    if (pulledRows && pulledRows.length > 0) {
-      const normalizedLogs = pulledRows.map(row => {
+    if (Array.isArray(pulledRows)) {
+      const validRows = pulledRows.filter(row => {
+        if (!row || typeof row !== 'object') return false;
+        const hasId = Boolean(String(row.id || '').trim());
+        const hasUser = Boolean(String(row.userFullName || row.username || '').trim());
+        const hasDate = Boolean(String(row.date || '').trim());
+        return hasId || hasUser || hasDate;
+      });
+
+      const normalizedLogs = validRows.map((row, idx) => {
         const rawUser = row.userFullName || row.username || '';
         const uInfo = resolveSpreadsheetUser(rawUser, row.department);
+        const normDate = normalizeSpreadsheetDate(row.date);
         return {
           ...row,
+          id: String(row.id || '').trim() || `tkt_row_${idx + 1}`,
+          date: normDate,
           userId: uInfo.userId || row.userId || '',
           username: uInfo.username,
           userFullName: uInfo.fullName,
           department: uInfo.department || row.department || 'CSO INBOUND'
         };
       });
-      state.saveTikets(normalizedLogs);
+
+      const stampedLogs = state.markSpreadsheetPullSnapshot('vortex_tikets', normalizedLogs);
+      if (state.selectedTiketIds) state.selectedTiketIds.clear();
+      state.saveTikets(stampedLogs);
+
       const now = new Date();
       const formatted = `${String(now.getDate()).padStart(2, '0')}/${String(now.getMonth() + 1).padStart(2, '0')}/${now.getFullYear()} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
       config.lastSyncTime = formatted;
+      config.lastSyncStatus = 'success';
       state.saveTiketGSheetConfig(config);
+
+      if (UI.labelTiketGSheetModalTotalCount) UI.labelTiketGSheetModalTotalCount.textContent = `${stampedLogs.length} Baris`;
+      if (UI.labelTiketGSheetModalLastSync) UI.labelTiketGSheetModalLastSync.textContent = formatted;
+
+      alignMonthFilterToPulledData(stampedLogs, UI.filterTiketMonth, 'filterTiketMonth');
       renderTiketPage();
-      showToast('Tarik Data Berhasil', `Berhasil mengambil <strong>${normalizedLogs.length} data tiket</strong> dari Google Spreadsheet.`, 'success');
+      if (typeof renderOverviewPage === 'function' && state.currentPage === 'overview') renderOverviewPage();
+
+      if (stampedLogs.length > 0) {
+        showToast('Tarik Data Berhasil', `Berhasil mengambil <strong>${stampedLogs.length} data tiket</strong> terbaru dari Google Spreadsheet.`, 'success');
+      } else {
+        showToast('Sinkronisasi Spreadsheet Kosong', 'Data Tiket pada Google Spreadsheet kosong (0 baris). Data Tiket pada website telah dihapus mengikuti spreadsheet.', 'info');
+      }
     } else {
-      showToast('Data Kosong / Tidak Terbaca', 'Tidak ada data tiket yang ditemukan pada Google Spreadsheet atau sheet masih kosong.', 'info');
+      showToast('Data Kosong / Tidak Terbaca', 'Tidak dapat membaca data tiket dari Google Spreadsheet. Pastikan akses Web App / Sheet disetel "Anyone".', 'warning');
     }
   } catch (err) {
     console.error('Error pulling Tiket from Google Sheets:', err);
@@ -15742,46 +15940,64 @@ async function pullAhtFromGoogleSheets() {
 
   try {
     let pulledRows = null;
+    const rawSheetSource = config.sheetId || (config.webAppUrl && config.webAppUrl.includes('docs.google.com/spreadsheets') ? config.webAppUrl : '');
+    const cleanId = rawSheetSource ? extractGoogleSpreadsheetId(rawSheetSource) : '';
+    const gidMatch = String(rawSheetSource || '').match(/[#&?]gid=([0-9]+)/);
+    const gid = gidMatch ? gidMatch[1] : '';
 
-    if (config.webAppUrl) {
-      const getUrl = config.webAppUrl + (config.webAppUrl.includes('?') ? '&' : '?') + 'action=get_all';
-      const resp = await fetch(getUrl, { method: 'GET', mode: 'cors' });
-      if (resp.ok) {
-        const json = await resp.json();
-        if (json && json.success && Array.isArray(json.data)) {
-          pulledRows = json.data;
+    if (config.webAppUrl && !config.webAppUrl.includes('docs.google.com/spreadsheets')) {
+      try {
+        const getUrl = config.webAppUrl + (config.webAppUrl.includes('?') ? '&' : '?') + 'action=get_all';
+        const resp = await fetch(getUrl, { method: 'GET', mode: 'cors' });
+        if (resp.ok) {
+          const json = await resp.json();
+          if (json && json.success !== false) {
+            const arr = Array.isArray(json.data) ? json.data : (Array.isArray(json.logs) ? json.logs : (Array.isArray(json.rows) ? json.rows : null));
+            if (arr !== null) {
+              pulledRows = arr;
+            }
+          }
         }
+      } catch (eWeb) {
+        if (!cleanId) throw eWeb;
+        console.warn('AHT WebApp pull fallback to CSV:', eWeb);
       }
     }
 
     // Fallback to public sheet CSV export if Web App did not return JSON or if only sheetId is present
-    if (!pulledRows && config.sheetId) {
-      const cleanId = extractGoogleSpreadsheetId(config.sheetId);
-      const csvUrl = `https://docs.google.com/spreadsheets/d/${cleanId}/export?format=csv&sheet=${encodeURIComponent(config.sheetName || 'AHT_Data')}`;
+    if (pulledRows === null && cleanId) {
+      const csvUrl = gid
+        ? `https://docs.google.com/spreadsheets/d/${cleanId}/export?format=csv&gid=${gid}`
+        : `https://docs.google.com/spreadsheets/d/${cleanId}/export?format=csv&sheet=${encodeURIComponent(config.sheetName || 'AHT_Data')}`;
       const resp = await fetch(csvUrl);
       if (resp.ok) {
         const csvText = await resp.text();
-        const lines = csvText.split(/\r?\n/).filter(l => l.trim().length > 0);
-        if (lines.length > 1) {
+        if (!/^\s*<!DOCTYPE\s+html/i.test(csvText) && !/^\s*<html/i.test(csvText)) {
           pulledRows = [];
-          for (let i = 1; i < lines.length; i++) {
-            const cols = parseCsvRow(lines[i]);
-            if (cols[0]) {
+          const lines = csvText.split(/\r?\n/).filter(l => l.trim().length > 0);
+          if (lines.length > 1) {
+            for (let i = 1; i < lines.length; i++) {
+              const cols = parseCsvRow(lines[i]);
+              const c0 = String(cols[0] || '').trim();
+              const c1 = String(cols[1] || '').trim();
+              const c2 = String(cols[2] || '').trim();
+              if (!c0 && !c1 && !c2) continue;
+              if (c0.toLowerCase().startsWith('id log') || c0.toLowerCase() === 'id aht') continue;
               const actualSec = parseInt(cols[4], 10) || 0;
               pulledRows.push({
-                id: cols[0],
-                date: cols[1] || '',
-                userFullName: cols[2] || '',
-                department: cols[3] || 'CSO INBOUND',
+                id: c0 || `aht_row_${i}`,
+                date: c1,
+                userFullName: c2,
+                department: String(cols[3] || '').trim() || 'CSO INBOUND',
                 actualSeconds: actualSec,
                 totalDurationSeconds: actualSec,
                 interactionCount: 1,
                 targetSeconds: 0,
                 deviationSeconds: 0,
                 deviationText: '',
-                status: cols[5] || 'Tercatat',
-                notes: cols[6] || '',
-                createdAt: cols[7] || ''
+                status: String(cols[5] || '').trim() || 'Tercatat',
+                notes: String(cols[6] || '').trim(),
+                createdAt: String(cols[7] || '').trim()
               });
             }
           }
@@ -15789,27 +16005,54 @@ async function pullAhtFromGoogleSheets() {
       }
     }
 
-    if (pulledRows && pulledRows.length > 0) {
-      const normalizedLogs = pulledRows.map(row => {
+    if (Array.isArray(pulledRows)) {
+      const validRows = pulledRows.filter(row => {
+        if (!row || typeof row !== 'object') return false;
+        const hasId = Boolean(String(row.id || '').trim());
+        const hasUser = Boolean(String(row.userFullName || row.username || '').trim());
+        const hasDate = Boolean(String(row.date || '').trim());
+        return hasId || hasUser || hasDate;
+      });
+
+      const normalizedLogs = validRows.map((row, idx) => {
         const rawUser = row.userFullName || row.username || '';
         const uInfo = resolveSpreadsheetUser(rawUser, row.department);
+        const normDate = normalizeSpreadsheetDate(row.date);
         return {
           ...row,
+          id: String(row.id || '').trim() || `aht_row_${idx + 1}`,
+          date: normDate,
           userId: uInfo.userId || row.userId || '',
           username: uInfo.username,
           userFullName: uInfo.fullName,
           department: uInfo.department || row.department || 'CSO INBOUND'
         };
       });
-      state.saveAhtLogs(normalizedLogs);
+
+      const stampedLogs = state.markSpreadsheetPullSnapshot('vortex_aht_logs', normalizedLogs);
+      if (state.selectedAhtIds) state.selectedAhtIds.clear();
+      state.saveAhtLogs(stampedLogs);
+
       const now = new Date();
       const formatted = `${String(now.getDate()).padStart(2, '0')}/${String(now.getMonth() + 1).padStart(2, '0')}/${now.getFullYear()} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
       config.lastSyncTime = formatted;
+      config.lastSyncStatus = 'success';
       state.saveAhtGSheetConfig(config);
+
+      if (UI.labelAhtGSheetModalTotalCount) UI.labelAhtGSheetModalTotalCount.textContent = `${stampedLogs.length} Baris`;
+      if (UI.labelAhtGSheetModalLastSync) UI.labelAhtGSheetModalLastSync.textContent = formatted;
+
+      alignMonthFilterToPulledData(stampedLogs, UI.filterAhtMonth, 'filterAhtMonth');
       renderAhtPage();
-      showToast('Tarik Data Berhasil', `Berhasil mengambil <strong>${normalizedLogs.length} data AHT</strong> dari Google Spreadsheet.`, 'success');
+      if (typeof renderOverviewPage === 'function' && state.currentPage === 'overview') renderOverviewPage();
+
+      if (stampedLogs.length > 0) {
+        showToast('Tarik Data Berhasil', `Berhasil mengambil <strong>${stampedLogs.length} data AHT</strong> terbaru dari Google Spreadsheet.`, 'success');
+      } else {
+        showToast('Sinkronisasi Spreadsheet Kosong', 'Data AHT pada Google Spreadsheet kosong (0 baris). Data AHT pada website telah dihapus mengikuti spreadsheet.', 'info');
+      }
     } else {
-      showToast('Data Kosong / Tidak Terbaca', 'Tidak ada data AHT yang ditemukan pada Google Spreadsheet atau sheet masih kosong.', 'info');
+      showToast('Data Kosong / Tidak Terbaca', 'Tidak dapat membaca data AHT dari Google Spreadsheet. Pastikan akses Web App / Sheet disetel "Anyone".', 'warning');
     }
   } catch (err) {
     console.error('Error pulling AHT from Google Sheets:', err);
@@ -16354,40 +16597,58 @@ async function pullArtFromGoogleSheets() {
 
   try {
     let pulledRows = null;
+    const rawSheetSource = config.sheetId || (config.webAppUrl && config.webAppUrl.includes('docs.google.com/spreadsheets') ? config.webAppUrl : '');
+    const cleanId = rawSheetSource ? extractGoogleSpreadsheetId(rawSheetSource) : '';
+    const gidMatch = String(rawSheetSource || '').match(/[#&?]gid=([0-9]+)/);
+    const gid = gidMatch ? gidMatch[1] : '';
 
-    if (config.webAppUrl) {
-      const getUrl = config.webAppUrl + (config.webAppUrl.includes('?') ? '&' : '?') + 'action=get_all';
-      const resp = await fetch(getUrl, { method: 'GET', mode: 'cors' });
-      if (resp.ok) {
-        const json = await resp.json();
-        if (json && json.success && Array.isArray(json.data)) {
-          pulledRows = json.data;
+    if (config.webAppUrl && !config.webAppUrl.includes('docs.google.com/spreadsheets')) {
+      try {
+        const getUrl = config.webAppUrl + (config.webAppUrl.includes('?') ? '&' : '?') + 'action=get_all';
+        const resp = await fetch(getUrl, { method: 'GET', mode: 'cors' });
+        if (resp.ok) {
+          const json = await resp.json();
+          if (json && json.success !== false) {
+            const arr = Array.isArray(json.data) ? json.data : (Array.isArray(json.logs) ? json.logs : (Array.isArray(json.rows) ? json.rows : null));
+            if (arr !== null) {
+              pulledRows = arr;
+            }
+          }
         }
+      } catch (eWeb) {
+        if (!cleanId) throw eWeb;
+        console.warn('ART WebApp pull fallback to CSV:', eWeb);
       }
     }
 
     // Fallback to public sheet CSV export if Web App did not return JSON or if only sheetId is present
-    if (!pulledRows && config.sheetId) {
-      const cleanId = extractGoogleSpreadsheetId(config.sheetId);
-      const csvUrl = `https://docs.google.com/spreadsheets/d/${cleanId}/export?format=csv&sheet=${encodeURIComponent(config.sheetName || 'ART_Data')}`;
+    if (pulledRows === null && cleanId) {
+      const csvUrl = gid
+        ? `https://docs.google.com/spreadsheets/d/${cleanId}/export?format=csv&gid=${gid}`
+        : `https://docs.google.com/spreadsheets/d/${cleanId}/export?format=csv&sheet=${encodeURIComponent(config.sheetName || 'ART_Data')}`;
       const resp = await fetch(csvUrl);
       if (resp.ok) {
         const csvText = await resp.text();
-        const lines = csvText.split(/\r?\n/).filter(l => l.trim().length > 0);
-        if (lines.length > 1) {
+        if (!/^\s*<!DOCTYPE\s+html/i.test(csvText) && !/^\s*<html/i.test(csvText)) {
           pulledRows = [];
-          for (let i = 1; i < lines.length; i++) {
-            const cols = parseCsvRow(lines[i]);
-            if (cols[0]) {
-              const artSec = parseFloat(cols[4]) || 0;
+          const lines = csvText.split(/\r?\n/).filter(l => l.trim().length > 0);
+          if (lines.length > 1) {
+            for (let i = 1; i < lines.length; i++) {
+              const cols = parseCsvRow(lines[i]);
+              const c0 = String(cols[0] || '').trim();
+              const c1 = String(cols[1] || '').trim();
+              const c2 = String(cols[2] || '').trim();
+              if (!c0 && !c1 && !c2) continue;
+              if (c0.toLowerCase().startsWith('id log') || c0.toLowerCase() === 'id art') continue;
+              const artSec = parseFloat(String(cols[4] || '').replace(',', '.')) || 0;
               const targetSec = parseInt(cols[5], 10) || 30;
               const devSec = artSec - targetSec;
               const devText = devSec <= 0 ? ('-' + Math.abs(devSec).toFixed(1) + ' dtk') : ('+' + devSec.toFixed(1) + ' dtk (Over SLA)');
               pulledRows.push({
-                id: cols[0],
-                date: cols[1] || '',
-                userFullName: cols[2] || '',
-                department: cols[3] || 'CSO DIGILIVE CHAT - WA',
+                id: c0 || `art_row_${i}`,
+                date: c1,
+                userFullName: c2,
+                department: String(cols[3] || '').trim() || 'CSO DIGILIVE CHAT - WA',
                 interactionCount: 1,
                 queueSeconds: 0,
                 frtSeconds: 0,
@@ -16395,9 +16656,9 @@ async function pullArtFromGoogleSheets() {
                 targetSeconds: targetSec,
                 deviationSeconds: devSec,
                 deviationText: devText,
-                status: cols[6] || (artSec <= targetSec ? 'Sesuai SLA' : 'Over SLA'),
-                notes: cols[7] || '',
-                createdAt: cols[8] || ''
+                status: String(cols[6] || '').trim() || (artSec <= targetSec ? 'Sesuai SLA' : 'Over SLA'),
+                notes: String(cols[7] || '').trim(),
+                createdAt: String(cols[8] || '').trim()
               });
             }
           }
@@ -16405,27 +16666,54 @@ async function pullArtFromGoogleSheets() {
       }
     }
 
-    if (pulledRows && pulledRows.length > 0) {
-      const normalizedLogs = pulledRows.map(row => {
+    if (Array.isArray(pulledRows)) {
+      const validRows = pulledRows.filter(row => {
+        if (!row || typeof row !== 'object') return false;
+        const hasId = Boolean(String(row.id || '').trim());
+        const hasUser = Boolean(String(row.userFullName || row.username || '').trim());
+        const hasDate = Boolean(String(row.date || '').trim());
+        return hasId || hasUser || hasDate;
+      });
+
+      const normalizedLogs = validRows.map((row, idx) => {
         const rawUser = row.userFullName || row.username || '';
         const uInfo = resolveSpreadsheetUser(rawUser, row.department);
+        const normDate = normalizeSpreadsheetDate(row.date);
         return {
           ...row,
+          id: String(row.id || '').trim() || `art_row_${idx + 1}`,
+          date: normDate,
           userId: uInfo.userId || row.userId || '',
           username: uInfo.username,
           userFullName: uInfo.fullName,
           department: uInfo.department || row.department || 'CSO DIGILIVE CHAT - WA'
         };
       });
-      state.saveArtLogs(normalizedLogs);
+
+      const stampedLogs = state.markSpreadsheetPullSnapshot('vortex_art_logs', normalizedLogs);
+      if (state.selectedArtIds) state.selectedArtIds.clear();
+      state.saveArtLogs(stampedLogs);
+
       const now = new Date();
       const formatted = `${String(now.getDate()).padStart(2, '0')}/${String(now.getMonth() + 1).padStart(2, '0')}/${now.getFullYear()} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
       config.lastSyncTime = formatted;
+      config.lastSyncStatus = 'success';
       state.saveArtGSheetConfig(config);
+
+      if (UI.labelArtGSheetModalTotalCount) UI.labelArtGSheetModalTotalCount.textContent = `${stampedLogs.length} Baris`;
+      if (UI.labelArtGSheetModalLastSync) UI.labelArtGSheetModalLastSync.textContent = formatted;
+
+      alignMonthFilterToPulledData(stampedLogs, UI.filterArtMonth, 'filterArtMonth');
       renderArtPage();
-      showToast('Tarik Data Berhasil', `Berhasil mengambil <strong>${normalizedLogs.length} data ART</strong> dari Google Spreadsheet.`, 'success');
+      if (typeof renderOverviewPage === 'function' && state.currentPage === 'overview') renderOverviewPage();
+
+      if (stampedLogs.length > 0) {
+        showToast('Tarik Data Berhasil', `Berhasil mengambil <strong>${stampedLogs.length} data ART</strong> terbaru dari Google Spreadsheet.`, 'success');
+      } else {
+        showToast('Sinkronisasi Spreadsheet Kosong', 'Data ART pada Google Spreadsheet kosong (0 baris). Data ART pada website telah dihapus mengikuti spreadsheet.', 'info');
+      }
     } else {
-      showToast('Data Kosong / Tidak Terbaca', 'Tidak ada data ART yang ditemukan pada Google Spreadsheet atau sheet masih kosong.', 'info');
+      showToast('Data Kosong / Tidak Terbaca', 'Tidak dapat membaca data ART dari Google Spreadsheet. Pastikan akses Web App / Sheet disetel "Anyone".', 'warning');
     }
   } catch (err) {
     console.error('Error pulling ART from Google Sheets:', err);
@@ -17967,44 +18255,62 @@ async function pullFindingFromGoogleSheets() {
 
   try {
     let pulledRows = null;
+    const rawSheetSource = config.sheetId || (config.webAppUrl && config.webAppUrl.includes('docs.google.com/spreadsheets') ? config.webAppUrl : '');
+    const cleanId = rawSheetSource ? extractGoogleSpreadsheetId(rawSheetSource) : '';
+    const gidMatch = String(rawSheetSource || '').match(/[#&?]gid=([0-9]+)/);
+    const gid = gidMatch ? gidMatch[1] : '';
 
-    if (config.webAppUrl) {
-      const getUrl = config.webAppUrl + (config.webAppUrl.includes('?') ? '&' : '?') + 'action=get_all';
-      const resp = await fetch(getUrl, { method: 'GET', mode: 'cors' });
-      if (resp.ok) {
-        const json = await resp.json();
-        if (json && json.success && Array.isArray(json.data)) {
-          pulledRows = json.data;
+    if (config.webAppUrl && !config.webAppUrl.includes('docs.google.com/spreadsheets')) {
+      try {
+        const getUrl = config.webAppUrl + (config.webAppUrl.includes('?') ? '&' : '?') + 'action=get_all';
+        const resp = await fetch(getUrl, { method: 'GET', mode: 'cors' });
+        if (resp.ok) {
+          const json = await resp.json();
+          if (json && json.success !== false) {
+            const arr = Array.isArray(json.data) ? json.data : (Array.isArray(json.findings) ? json.findings : (Array.isArray(json.logs) ? json.logs : (Array.isArray(json.rows) ? json.rows : null)));
+            if (arr !== null) {
+              pulledRows = arr;
+            }
+          }
         }
+      } catch (eWeb) {
+        if (!cleanId) throw eWeb;
+        console.warn('Finding WebApp pull fallback to CSV:', eWeb);
       }
     }
 
     // Fallback to public sheet CSV export if Web App did not return JSON or if only sheetId is present
-    if (!pulledRows && config.sheetId) {
-      const cleanId = extractGoogleSpreadsheetId(config.sheetId);
-      const csvUrl = `https://docs.google.com/spreadsheets/d/${cleanId}/export?format=csv&sheet=${encodeURIComponent(config.sheetName || 'Finding_Data')}`;
+    if (pulledRows === null && cleanId) {
+      const csvUrl = gid
+        ? `https://docs.google.com/spreadsheets/d/${cleanId}/export?format=csv&gid=${gid}`
+        : `https://docs.google.com/spreadsheets/d/${cleanId}/export?format=csv&sheet=${encodeURIComponent(config.sheetName || 'Finding_Data')}`;
       const resp = await fetch(csvUrl);
       if (resp.ok) {
         const csvText = await resp.text();
-        const lines = csvText.split(/\r?\n/).filter(l => l.trim().length > 0);
-        if (lines.length > 1) {
+        if (!/^\s*<!DOCTYPE\s+html/i.test(csvText) && !/^\s*<html/i.test(csvText)) {
           pulledRows = [];
-          for (let i = 1; i < lines.length; i++) {
-            const cols = parseCsvRow(lines[i]);
-            if (cols[0]) {
+          const lines = csvText.split(/\r?\n/).filter(l => l.trim().length > 0);
+          if (lines.length > 1) {
+            for (let i = 1; i < lines.length; i++) {
+              const cols = parseCsvRow(lines[i]);
+              const c0 = String(cols[0] || '').trim();
+              const c1 = String(cols[1] || '').trim();
+              const c2 = String(cols[2] || '').trim();
+              if (!c0 && !c1 && !c2) continue;
+              if (c0.toLowerCase() === 'id temuan' || c0.toLowerCase() === 'id finding') continue;
               pulledRows.push({
-                id: cols[0],
-                date: cols[1] || '',
-                userFullName: cols[2] || '',
-                department: cols[3] || 'CSO INBOUND',
-                findingType: cols[4] || '-',
-                category: cols[5] || 'Quality',
-                deviationLevel: cols[6] || 'Reminder 1',
-                desc: cols[7] || '',
-                commitment: cols[8] || '-',
-                actionPlan: cols[9] || '',
-                status: cols[10] || 'Open',
-                createdAt: cols[11] || ''
+                id: c0 || `fnd_row_${i}`,
+                date: c1,
+                userFullName: c2,
+                department: String(cols[3] || '').trim() || 'CSO INBOUND',
+                findingType: String(cols[4] || '').trim() || '-',
+                category: String(cols[5] || '').trim() || 'Quality',
+                deviationLevel: String(cols[6] || '').trim() || 'Reminder 1',
+                desc: String(cols[7] || '').trim(),
+                commitment: String(cols[8] || '').trim() || '-',
+                actionPlan: String(cols[9] || '').trim(),
+                status: String(cols[10] || '').trim() || 'Open',
+                createdAt: String(cols[11] || '').trim()
               });
             }
           }
@@ -18012,16 +18318,54 @@ async function pullFindingFromGoogleSheets() {
       }
     }
 
-    if (pulledRows && pulledRows.length > 0) {
-      state.saveFindings(pulledRows);
+    if (Array.isArray(pulledRows)) {
+      const validRows = pulledRows.filter(row => {
+        if (!row || typeof row !== 'object') return false;
+        const hasId = Boolean(String(row.id || '').trim());
+        const hasUser = Boolean(String(row.userFullName || row.username || '').trim());
+        const hasDate = Boolean(String(row.date || '').trim());
+        return hasId || hasUser || hasDate;
+      });
+
+      const normalizedFindings = validRows.map((row, idx) => {
+        const rawUser = row.userFullName || row.username || '';
+        const uInfo = resolveSpreadsheetUser(rawUser, row.department);
+        const normDate = normalizeSpreadsheetDate(row.date);
+        return {
+          ...row,
+          id: String(row.id || '').trim() || `fnd_row_${idx + 1}`,
+          date: normDate,
+          userId: uInfo.userId || row.userId || '',
+          username: uInfo.username,
+          userFullName: uInfo.fullName || rawUser,
+          department: uInfo.department || row.department || 'CSO INBOUND'
+        };
+      });
+
+      const stampedFindings = state.markSpreadsheetPullSnapshot('vortex_findings', normalizedFindings);
+      if (state.selectedFindingIds) state.selectedFindingIds.clear();
+      state.saveFindings(stampedFindings);
+
       const now = new Date();
       const formatted = `${String(now.getDate()).padStart(2, '0')}/${String(now.getMonth() + 1).padStart(2, '0')}/${now.getFullYear()} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
       config.lastSyncTime = formatted;
+      config.lastSyncStatus = 'connected';
       state.saveFindingGSheetConfig(config);
+
+      if (UI.labelFindingGSheetModalTotalCount) UI.labelFindingGSheetModalTotalCount.textContent = `${stampedFindings.length} Baris`;
+      if (UI.labelFindingGSheetModalLastSync) UI.labelFindingGSheetModalLastSync.textContent = formatted;
+
+      alignMonthFilterToPulledData(stampedFindings, UI.filterFindingMonth, 'filterFindingMonth');
       renderFindingPage();
-      showToast('Tarik Data Berhasil', `Berhasil mengambil <strong>${pulledRows.length} data Finding</strong> dari Google Spreadsheet.`, 'success');
+      if (typeof renderUpdatePaPage === 'function' && state.currentPage === 'update-pa') renderUpdatePaPage();
+
+      if (stampedFindings.length > 0) {
+        showToast('Tarik Data Berhasil', `Berhasil mengambil <strong>${stampedFindings.length} data Finding</strong> terbaru dari Google Spreadsheet.`, 'success');
+      } else {
+        showToast('Sinkronisasi Spreadsheet Kosong', 'Data Finding pada Google Spreadsheet kosong (0 baris). Data Finding pada website telah dihapus mengikuti spreadsheet.', 'info');
+      }
     } else {
-      showToast('Data Kosong / Tidak Terbaca', 'Tidak ada data Finding yang ditemukan pada Google Spreadsheet atau sheet masih kosong.', 'info');
+      showToast('Data Kosong / Tidak Terbaca', 'Tidak dapat membaca data Finding dari Google Spreadsheet. Pastikan akses Web App / Sheet disetel "Anyone".', 'warning');
     }
   } catch (err) {
     console.error('Error pulling Finding from Google Sheets:', err);
@@ -19984,8 +20328,13 @@ function initEvents() {
 
   if (UI.btnRefreshCa) {
     UI.btnRefreshCa.addEventListener('click', () => {
-      renderCaPage();
-      showToast('Data Diperbarui', 'Data evaluasi mutu CA disinkronkan.', 'info');
+      const cfg = state.getCaGSheetConfig();
+      if (state.isAdmin() && cfg && (cfg.webAppUrl || cfg.sheetId)) {
+        pullCaFromGoogleSheets();
+      } else {
+        renderCaPage();
+        showToast('Data Diperbarui', 'Data evaluasi mutu CA disinkronkan.', 'info');
+      }
     });
   }
   if (UI.btnCloseCaModal) UI.btnCloseCaModal.addEventListener('click', closeCaModal);
@@ -20175,8 +20524,13 @@ function initEvents() {
 
   if (UI.btnRefreshTiket) {
     UI.btnRefreshTiket.addEventListener('click', () => {
-      renderTiketPage();
-      showToast('Data Diperbarui', 'Data rekapitulasi perolehan tiket harian disinkronkan.', 'info');
+      const cfg = state.getTiketGSheetConfig();
+      if (state.isAdmin() && cfg && (cfg.webAppUrl || cfg.sheetId)) {
+        pullTiketFromGoogleSheets();
+      } else {
+        renderTiketPage();
+        showToast('Data Diperbarui', 'Data rekapitulasi perolehan tiket harian disinkronkan.', 'info');
+      }
     });
   }
   if (UI.btnCloseTiketModal) UI.btnCloseTiketModal.addEventListener('click', closeTiketModal);
@@ -20311,8 +20665,13 @@ function initEvents() {
 
   if (UI.btnRefreshAht) {
     UI.btnRefreshAht.addEventListener('click', () => {
-      renderAhtPage();
-      showToast('Data Diperbarui', 'Metrik Average Handling Time diperbarui.', 'info');
+      const cfg = state.getAhtGSheetConfig();
+      if (state.isAdmin() && cfg && (cfg.webAppUrl || cfg.sheetId)) {
+        pullAhtFromGoogleSheets();
+      } else {
+        renderAhtPage();
+        showToast('Data Diperbarui', 'Metrik Average Handling Time diperbarui.', 'info');
+      }
     });
   }
 
@@ -20470,8 +20829,13 @@ function initEvents() {
 
   if (UI.btnRefreshArt) {
     UI.btnRefreshArt.addEventListener('click', () => {
-      renderArtPage();
-      showToast('Data Diperbarui', 'Metrik Average Response Time diperbarui.', 'info');
+      const cfg = state.getArtGSheetConfig();
+      if (state.isAdmin() && cfg && (cfg.webAppUrl || cfg.sheetId)) {
+        pullArtFromGoogleSheets();
+      } else {
+        renderArtPage();
+        showToast('Data Diperbarui', 'Metrik Average Response Time diperbarui.', 'info');
+      }
     });
   }
 
@@ -20626,8 +20990,13 @@ function initEvents() {
   if (UI.btnOpenAddFindingModal) UI.btnOpenAddFindingModal.addEventListener('click', openAddFindingModal);
   if (UI.btnRefreshFinding) {
     UI.btnRefreshFinding.addEventListener('click', () => {
-      renderFindingPage();
-      showToast('Data Diperbarui', 'Daftar temuan audit QA diperbarui.', 'info');
+      const cfg = state.getFindingGSheetConfig();
+      if (state.isAdmin() && cfg && (cfg.webAppUrl || cfg.sheetId)) {
+        pullFindingFromGoogleSheets();
+      } else {
+        renderFindingPage();
+        showToast('Data Diperbarui', 'Daftar temuan audit QA diperbarui.', 'info');
+      }
     });
   }
   if (UI.btnCloseFindingModal) UI.btnCloseFindingModal.addEventListener('click', closeFindingModal);

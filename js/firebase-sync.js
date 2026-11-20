@@ -344,6 +344,102 @@
       const isTimer = (key === 'vortex_timers');
       const isStopwatch = (key === 'vortex_stopwatches');
       const isTimerKey = (isTimer || isStopwatch);
+      const isSpreadsheetKey = [
+        'vortex_ca_logs',
+        'vortex_tikets',
+        'vortex_aht_logs',
+        'vortex_art_logs',
+        'vortex_findings'
+      ].includes(key);
+
+      if (isSpreadsheetKey) {
+        const localPullTs = Number(localStorage.getItem('vortex_last_pull_ts_' + key) || 0);
+        const maxRemoteItemPullTs = Array.isArray(remoteArr)
+          ? remoteArr.reduce((max, r) => Math.max(max, Number((r && r._pulledAt) || 0)), 0)
+          : 0;
+        const remotePullTs = Math.max(Number(this._remoteDocPullTs?.[key] || 0), maxRemoteItemPullTs);
+        const knownSynced = typeof this.getKnownSyncedIds === 'function' ? this.getKnownSyncedIds(key) : new Set();
+
+        const safeLocal = Array.isArray(localArr) ? localArr.filter(l => l && l.id && !this.isDummyItem(l) && !deletedIds.has(l.id)) : [];
+        const safeRemote = Array.isArray(remoteArr) ? remoteArr.filter(r => r && r.id && !this.isDummyItem(r) && !deletedIds.has(r.id)) : [];
+        const localIdSet = new Set(safeLocal.map(l => String(l.id)));
+        const remoteIdSet = new Set(safeRemote.map(r => String(r.id)));
+
+        let hasLocalOverrides = false;
+
+        // 1. Jika perangkat lokal baru saja menarik (pull) dari Google Spreadsheet (termasuk jika hasil tarikan kosong []):
+        //    Seluruh data remote lama yang tidak ada di tarikan terakhir wajib dihapus dan tidak boleh muncul kembali!
+        if (localPullTs > 0 && localPullTs >= remotePullTs) {
+          safeRemote.forEach(r => {
+            const rId = String(r.id);
+            const rTs = Math.max(Number(r._pulledAt || 0), Number(r._updatedAtMs || 0));
+            if (!localIdSet.has(rId) && rTs < localPullTs) {
+              deletedIds.add(rId);
+              this.trackDeletedId(key, rId);
+              hasLocalOverrides = true;
+            }
+          });
+        }
+
+        // 2. Jika Cloud memiliki tarikan Google Spreadsheet yang lebih baru (remotePullTs > localPullTs):
+        //    Seluruh data lokal lama yang tidak ada di tarikan terbaru Cloud wajib dihapus!
+        if (remotePullTs > localPullTs) {
+          try {
+            localStorage.setItem('vortex_last_pull_ts_' + key, String(remotePullTs));
+          } catch (e) {}
+          safeLocal.forEach(l => {
+            const lId = String(l.id);
+            const lTs = Math.max(Number(l._pulledAt || 0), Number(l._updatedAtMs || 0));
+            if (!remoteIdSet.has(lId) && lTs < remotePullTs) {
+              deletedIds.add(lId);
+              this.trackDeletedId(key, lId);
+            }
+          });
+        }
+
+        const mergedMap = new Map();
+
+        // Masukkan item remote yang masih valid (tidak terhapus oleh tarikan baru)
+        safeRemote.forEach(r => {
+          const rId = String(r.id);
+          if (!deletedIds.has(rId)) {
+            mergedMap.set(rId, r);
+          }
+        });
+
+        // Gabungkan dengan item lokal yang valid
+        safeLocal.forEach(l => {
+          const lId = String(l.id);
+          if (deletedIds.has(lId)) return;
+          const r = mergedMap.get(lId);
+          if (!r) {
+            // Item ada di lokal tapi tidak ada di Cloud:
+            // Jika sudah pernah disinkronkan sebelumnya dan lokal tidak lebih baru dari tarikan Cloud, berarti telah dihapus di Cloud
+            const lTs = Math.max(Number(l._pulledAt || 0), Number(l._updatedAtMs || 0));
+            if (knownSynced.has(lId) && lTs < remotePullTs) {
+              deletedIds.add(lId);
+              this.trackDeletedId(key, lId);
+              return;
+            }
+            mergedMap.set(lId, l);
+            hasLocalOverrides = true;
+          } else {
+            const lTs = Math.max(Number(l._pulledAt || 0), Number(l._updatedAtMs || 0));
+            const rTs = Math.max(Number(r._pulledAt || 0), Number(r._updatedAtMs || 0));
+            if (lTs > rTs || (lTs === rTs && JSON.stringify(l) !== JSON.stringify(r))) {
+              mergedMap.set(lId, l);
+              hasLocalOverrides = true;
+            }
+          }
+        });
+
+        const mergedList = Array.from(mergedMap.values());
+        try {
+          localStorage.setItem('vortex_synced_ids_' + key, JSON.stringify(mergedList.map(item => String(item.id))));
+        } catch (e) {}
+
+        return { merged: mergedList, hasLocalOverrides };
+      }
 
       const catchUpTimerOrSw = (item, nowTime) => {
         if (!item) return item;
@@ -679,6 +775,10 @@
             if (Array.isArray(docData.deletedIds) && docData.deletedIds.length > 0) {
               docData.deletedIds.forEach(dId => this.trackDeletedId(key, dId));
             }
+            if (!this._remoteDocPullTs) this._remoteDocPullTs = {};
+            if (docData.lastPullTs) {
+              this._remoteDocPullTs[key] = Number(docData.lastPullTs) || 0;
+            }
 
             const currentLocalRaw = localStorage.getItem(key);
             let finalPayload = docData.payload;
@@ -831,10 +931,10 @@
 
         // Pemetaan halaman dan key data yang relevan agar halaman tidak ter-refresh oleh data lain yang tidak terkait
         const PAGE_AFFECTED_KEYS = {
-          'overview': ['vortex_ca_logs', 'vortex_tikets', 'vortex_art_logs', 'vortex_pa_logs', 'vortex_items', 'vortex_users', 'all'],
+          'overview': ['vortex_ca_logs', 'vortex_tikets', 'vortex_aht_logs', 'vortex_art_logs', 'vortex_findings', 'vortex_pa_logs', 'vortex_items', 'vortex_users', 'all'],
           'aktivitas': ['vortex_aktivitas_data', 'vortex_aktivitas_gsheet_config', 'vortex_users', 'all'],
           'data-management': ['vortex_items', 'vortex_users', 'all'],
-          'update-pa': ['vortex_pa_logs', 'vortex_users', 'all'],
+          'update-pa': ['vortex_pa_logs', 'vortex_ca_logs', 'vortex_tikets', 'vortex_aht_logs', 'vortex_art_logs', 'vortex_findings', 'vortex_users', 'all'],
           'ca': ['vortex_ca_logs', 'vortex_ca_gsheet_config', 'vortex_users', 'all'],
           'tiket': ['vortex_tikets', 'vortex_tiket_gsheet_config', 'vortex_users', 'all'],
           'aht': ['vortex_aht_logs', 'vortex_aht_gsheet_config', 'vortex_users', 'all'],
@@ -927,9 +1027,11 @@
           const stateObj = this.dashboard || window.state;
           const username = (stateObj && stateObj.currentUser && (stateObj.currentUser.fullName || stateObj.currentUser.username)) || 'Device';
 
+          const pullTs = Number(localStorage.getItem('vortex_last_pull_ts_' + key) || 0);
           await this.db.collection(COLLECTION_NAME).doc(key).set({
             payload: cleanData,
             deletedIds: [...this.getDeletedIds(key)],
+            lastPullTs: pullTs,
             writerDeviceId: this.deviceId,
             actionTimestamp: Date.now(),
             updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
@@ -1052,6 +1154,10 @@
             // Sinkronisasi catatan ID item yang dihapus dari cloud ke lokal
             if (Array.isArray(data.deletedIds) && data.deletedIds.length > 0) {
               data.deletedIds.forEach(dId => this.trackDeletedId(key, dId));
+            }
+            if (!this._remoteDocPullTs) this._remoteDocPullTs = {};
+            if (data.lastPullTs) {
+              this._remoteDocPullTs[key] = Number(data.lastPullTs) || 0;
             }
             let finalPayload = data.payload;
 
@@ -1278,12 +1384,23 @@
         { method: 'saveAktivitasGSheetConfig', key: 'vortex_aktivitas_gsheet_config' }
       ];
 
+      const IMMEDIATE_SYNC_KEYS = new Set([
+        'vortex_timers',
+        'vortex_stopwatches',
+        'vortex_users',
+        'vortex_ca_logs',
+        'vortex_tikets',
+        'vortex_aht_logs',
+        'vortex_art_logs',
+        'vortex_findings'
+      ]);
+
       syncMap.forEach(({ method, key }) => {
         if (typeof state[method] === 'function' && !state[method]._isHooked) {
           const original = state[method].bind(state);
           state[method] = (data) => {
             const result = original(data);
-            const isImmediate = (key === 'vortex_timers' || key === 'vortex_stopwatches' || key === 'vortex_users');
+            const isImmediate = IMMEDIATE_SYNC_KEYS.has(key);
             this.notifyDataChanged(key, data, isImmediate);
             return result;
           };
