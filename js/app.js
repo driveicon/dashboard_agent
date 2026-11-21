@@ -4310,6 +4310,19 @@ function navigateToPage(pageId, save = true) {
     updateDynamicMonthDropdowns();
   }
 
+  // Background auto-sync from spreadsheet when visiting menu if configured and not recently pulled
+  const triggerAutoPullGSheet = (key, pullFn, getCfgFn) => {
+    try {
+      const cfg = getCfgFn ? getCfgFn() : null;
+      if (!cfg || cfg.autoSync === false || (!cfg.webAppUrl && !cfg.sheetId)) return;
+      const lastPull = Number(localStorage.getItem('vortex_last_pull_ts_' + key) || 0);
+      const now = Date.now();
+      if (now - lastPull > 20000) {
+        pullFn();
+      }
+    } catch (e) {}
+  };
+
   // Trigger page-specific renders
   if (pageId === 'overview') {
     renderOverviewPage();
@@ -4319,14 +4332,19 @@ function navigateToPage(pageId, save = true) {
     renderUpdatePaPage();
   } else if (pageId === 'ca') {
     renderCaPage();
+    triggerAutoPullGSheet('vortex_ca_logs', pullCaFromGoogleSheets, () => state.getCaGSheetConfig());
   } else if (pageId === 'tiket') {
     renderTiketPage();
+    triggerAutoPullGSheet('vortex_tikets', pullTiketFromGoogleSheets, () => state.getTiketGSheetConfig());
   } else if (pageId === 'aht') {
     renderAhtPage();
+    triggerAutoPullGSheet('vortex_aht_logs', pullAhtFromGoogleSheets, () => state.getAhtGSheetConfig());
   } else if (pageId === 'art') {
     renderArtPage();
+    triggerAutoPullGSheet('vortex_art_logs', pullArtFromGoogleSheets, () => state.getArtGSheetConfig());
   } else if (pageId === 'finding') {
     renderFindingPage();
+    triggerAutoPullGSheet('vortex_findings', pullFindingFromGoogleSheets, () => state.getFindingGSheetConfig());
   } else if (pageId === 'data-management') {
     renderDataTable();
   } else if (pageId === 'timer') {
@@ -4624,9 +4642,6 @@ function isLogMatchUser(log, user) {
       const oUser = String(logOwner.username || '').trim().replace(/^@+/, '').toLowerCase();
       return (tFull && (tFull === oFull || tFull === oUser)) || (tUser && (tUser === oUser || tUser === oFull));
     }
-    if (!logOwner && targetRegUser) {
-      return false;
-    }
   } else if (log.userId && (user.id || (targetRegUser && targetRegUser.id))) {
     return String(log.userId) === String(user.id || targetRegUser.id);
   }
@@ -4661,13 +4676,30 @@ function isLogMatchUser(log, user) {
   return false;
 }
 
+const SPREADSHEET_MONTH_MAP = {
+  jan: 1, januari: 1, january: 1,
+  feb: 2, februari: 2, february: 2,
+  mar: 3, maret: 3, march: 3,
+  apr: 4, april: 4,
+  mei: 5, may: 5,
+  jun: 6, juni: 6, june: 6,
+  jul: 7, juli: 7, july: 7,
+  agu: 8, ags: 8, agustus: 8, aug: 8, august: 8,
+  sep: 9, september: 9,
+  okt: 10, oct: 10, oktober: 10, october: 10,
+  nov: 11, november: 11,
+  des: 12, dec: 12, desember: 12, december: 12
+};
+
 function normalizeSpreadsheetDate(rawDate) {
   const s = String(rawDate || '').trim();
   if (!s) return '';
+  // 1. ISO format: YYYY-MM-DD or YYYY/MM/DD
   const isoMatch = s.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})/);
   if (isoMatch) {
     return `${isoMatch[1]}-${String(isoMatch[2]).padStart(2, '0')}-${String(isoMatch[3]).padStart(2, '0')}`;
   }
+  // 2. DMY format: DD/MM/YYYY or DD-MM-YYYY
   const dmyMatch = s.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})/);
   if (dmyMatch) {
     const p1 = parseInt(dmyMatch[1], 10);
@@ -4680,6 +4712,41 @@ function normalizeSpreadsheetDate(rawDate) {
       return `${yr}-${String(p1).padStart(2, '0')}-${String(p2).padStart(2, '0')}`;
     }
     return `${yr}-${String(p2).padStart(2, '0')}-${String(p1).padStart(2, '0')}`;
+  }
+  // 3. Named month format (DD Month YYYY): e.g. "5 November 2026", "05-Nov-2026"
+  const textMatch = s.match(/^(\d{1,2})\s*[-/,\s]\s*([a-zA-Z]+)\s*[-/,\s]\s*(\d{4})/);
+  if (textMatch) {
+    const d = parseInt(textMatch[1], 10);
+    const mStr = textMatch[2].toLowerCase();
+    const yr = textMatch[3];
+    const m = SPREADSHEET_MONTH_MAP[mStr];
+    if (m) {
+      return `${yr}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    }
+  }
+  // 4. Named month format (Month DD, YYYY): e.g. "November 5, 2026"
+  const textMatchMonthFirst = s.match(/^([a-zA-Z]+)\s*[-/,\s]\s*(\d{1,2})\s*[-/,\s]\s*(\d{4})/);
+  if (textMatchMonthFirst) {
+    const mStr = textMatchMonthFirst[1].toLowerCase();
+    const d = parseInt(textMatchMonthFirst[2], 10);
+    const yr = textMatchMonthFirst[3];
+    const m = SPREADSHEET_MONTH_MAP[mStr];
+    if (m) {
+      return `${yr}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    }
+  }
+  // 5. Excel serial number: e.g. 46348
+  if (/^\d{5}$/.test(s)) {
+    const serial = parseInt(s, 10);
+    if (serial > 30000 && serial < 60000) {
+      const utcDays = Math.floor(serial - 25569);
+      const utcValue = utcDays * 86400;
+      const dateInfo = new Date(utcValue * 1000);
+      const y = dateInfo.getUTCFullYear();
+      const m = dateInfo.getUTCMonth() + 1;
+      const d = dateInfo.getUTCDate();
+      return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    }
   }
   return s;
 }
@@ -4696,11 +4763,17 @@ function alignMonthFilterToPulledData(normalizedLogs, filterEl, filterId) {
   )).sort().reverse();
   if (pulledMonths.length > 0) {
     const curMonth = filterEl.value;
-    if (curMonth && curMonth !== 'ALL' && !pulledMonths.includes(curMonth)) {
+    // Align to the latest month of the pulled data so that newly pulled data is always visible immediately
+    if (!curMonth || curMonth !== 'ALL') {
       const targetMonth = pulledMonths[0];
-      if (!filterEl.options || filterEl.options.length === 0 || Array.from(filterEl.options).some(o => o.value === targetMonth)) {
-        filterEl.value = targetMonth;
+      // Ensure target option exists in select element
+      if (filterEl.options && !Array.from(filterEl.options).some(o => o.value === targetMonth)) {
+        const opt = document.createElement('option');
+        opt.value = targetMonth;
+        opt.textContent = typeof formatMonthLabel === 'function' ? formatMonthLabel(targetMonth) : targetMonth;
+        filterEl.appendChild(opt);
       }
+      filterEl.value = targetMonth;
       if (filterId && typeof saveUserControl === 'function') {
         saveUserControl(filterId, targetMonth);
       }
@@ -4713,6 +4786,7 @@ window.canonicalizeCaLog = canonicalizeCaLog;
 window.resolveSpreadsheetUser = resolveSpreadsheetUser;
 window.isLogMatchUser = isLogMatchUser;
 window.normalizeSpreadsheetDate = normalizeSpreadsheetDate;
+window.alignMonthFilterToPulledData = alignMonthFilterToPulledData;
 
 function calculateOverviewCombinedData() {
   const users = (state.getUsers ? state.getUsers() : []).filter(u => u && u.role !== 'admin');
@@ -11098,12 +11172,6 @@ function renderCaPage() {
     UI.filterCaScoreSort.value = preScoreSortVal;
   }
 
-  const selMonth = (UI.filterCaMonth ? UI.filterCaMonth.value : '2026-10') || '2026-10';
-  const monthLabel = formatMonthLabel(selMonth);
-  if (UI.caMonthHeaderLabel) {
-    UI.caMonthHeaderLabel.textContent = monthLabel;
-  }
-
   const rawLogs = state.getCaLogs ? state.getCaLogs() : [];
   const logs = rawLogs.map(l => canonicalizeCaLog(l, allRawUsers)).filter(l => {
     if (!l) return false;
@@ -11112,6 +11180,27 @@ function renderCaPage() {
     if (l.userFullName && adminNames.has(String(l.userFullName).trim().toLowerCase())) return false;
     return true;
   });
+
+  const distinctCaMonths = Array.from(new Set(logs.map(l => String(l.date || '').slice(0, 7)).filter(ym => /^\d{4}-\d{2}$/.test(ym)))).sort().reverse();
+  let selMonth = (UI.filterCaMonth ? UI.filterCaMonth.value : '') || '';
+  if (!selMonth || (selMonth !== 'ALL' && distinctCaMonths.length > 0 && !distinctCaMonths.includes(selMonth))) {
+    selMonth = distinctCaMonths[0] || 'ALL';
+    if (UI.filterCaMonth) {
+      if (UI.filterCaMonth.options && !Array.from(UI.filterCaMonth.options).some(o => o.value === selMonth)) {
+        const opt = document.createElement('option');
+        opt.value = selMonth;
+        opt.textContent = formatMonthLabel(selMonth);
+        UI.filterCaMonth.appendChild(opt);
+      }
+      UI.filterCaMonth.value = selMonth;
+    }
+  } else if (!selMonth) {
+    selMonth = 'ALL';
+  }
+  const monthLabel = formatMonthLabel(selMonth);
+  if (UI.caMonthHeaderLabel) {
+    UI.caMonthHeaderLabel.textContent = monthLabel;
+  }
 
   if (UI.caUserCountBadge) {
     UI.caUserCountBadge.textContent = `${users.length} User Terdaftar`;
@@ -12226,10 +12315,11 @@ function doGet(e) {
     const rows = [];
     for (let i = 1; i < data.length; i++) {
       const r = data[i];
-      if (!r[0]) continue;
+      if (!r[0] && !r[1] && !r[2]) continue;
+      const rowId = String(r[0] || '').trim() || ('ca_row_' + i);
       const userIdentifier = String(r[2] || '').trim();
       rows.push({
-        id: String(r[0]),
+        id: rowId,
         date: r[1] instanceof Date ? Utilities.formatDate(r[1], Session.getScriptTimeZone(), 'yyyy-MM-dd') : String(r[1]),
         username: userIdentifier,
         userFullName: userIdentifier,
@@ -12925,7 +13015,23 @@ function renderTiketPage() {
   const currentUser = state.currentUser;
   const currentFullName = currentUser ? currentUser.fullName : '';
 
-  const selectedMonth = (UI.filterTiketMonth ? UI.filterTiketMonth.value : '2026-10') || '2026-10';
+  const allTikets = state.getTikets();
+  const distinctTiketMonths = Array.from(new Set(allTikets.map(l => String(l.date || '').slice(0, 7)).filter(ym => /^\d{4}-\d{2}$/.test(ym)))).sort().reverse();
+  let selectedMonth = (UI.filterTiketMonth ? UI.filterTiketMonth.value : '') || '';
+  if (!selectedMonth || (selectedMonth !== 'ALL' && distinctTiketMonths.length > 0 && !distinctTiketMonths.includes(selectedMonth))) {
+    selectedMonth = distinctTiketMonths[0] || 'ALL';
+    if (UI.filterTiketMonth) {
+      if (UI.filterTiketMonth.options && !Array.from(UI.filterTiketMonth.options).some(o => o.value === selectedMonth)) {
+        const opt = document.createElement('option');
+        opt.value = selectedMonth;
+        opt.textContent = formatMonthLabel(selectedMonth);
+        UI.filterTiketMonth.appendChild(opt);
+      }
+      UI.filterTiketMonth.value = selectedMonth;
+    }
+  } else if (!selectedMonth) {
+    selectedMonth = 'ALL';
+  }
   const monthLabel = formatMonthLabel(selectedMonth);
 
   if (UI.tiketMonthHeaderLabel) {
@@ -12983,7 +13089,6 @@ function renderTiketPage() {
     if (UI.tiketBatchBar) UI.tiketBatchBar.classList.add('hidden');
   }
 
-  const allTikets = state.getTikets();
   const monthLogs = (selectedMonth && selectedMonth !== 'ALL') ? allTikets.filter(l => (l.date || '').startsWith(selectedMonth)) : allTikets;
   const allRawUsers = state.getUsers ? state.getUsers() : [];
   const users = allRawUsers.filter(u => u && u.role !== 'admin');
@@ -13953,9 +14058,10 @@ function doGet(e) {
     const rows = [];
     for (let i = 1; i < data.length; i++) {
       const r = data[i];
-      if (!r[0]) continue;
+      if (!r[0] && !r[1] && !r[2]) continue;
+      const rowId = String(r[0] || '').trim() || ('tkt_row_' + i);
       rows.push({
-        id: String(r[0]),
+        id: rowId,
         date: r[1] instanceof Date ? Utilities.formatDate(r[1], Session.getScriptTimeZone(), 'yyyy-MM-dd') : String(r[1]),
         userFullName: String(r[2] || ''),
         department: String(r[3] || ''),
@@ -14552,7 +14658,23 @@ function renderAhtPage() {
   const currentUser = state.currentUser;
   const currentFullName = currentUser ? currentUser.fullName : '';
 
-  const selectedMonth = (UI.filterAhtMonth ? UI.filterAhtMonth.value : '2026-10') || '2026-10';
+  const allAhtLogs = state.getAhtLogs();
+  const distinctAhtMonths = Array.from(new Set(allAhtLogs.map(l => String(l.date || '').slice(0, 7)).filter(ym => /^\d{4}-\d{2}$/.test(ym)))).sort().reverse();
+  let selectedMonth = (UI.filterAhtMonth ? UI.filterAhtMonth.value : '') || '';
+  if (!selectedMonth || (selectedMonth !== 'ALL' && distinctAhtMonths.length > 0 && !distinctAhtMonths.includes(selectedMonth))) {
+    selectedMonth = distinctAhtMonths[0] || 'ALL';
+    if (UI.filterAhtMonth) {
+      if (UI.filterAhtMonth.options && !Array.from(UI.filterAhtMonth.options).some(o => o.value === selectedMonth)) {
+        const opt = document.createElement('option');
+        opt.value = selectedMonth;
+        opt.textContent = formatMonthLabel(selectedMonth);
+        UI.filterAhtMonth.appendChild(opt);
+      }
+      UI.filterAhtMonth.value = selectedMonth;
+    }
+  } else if (!selectedMonth) {
+    selectedMonth = 'ALL';
+  }
   const monthLabel = formatMonthLabel(selectedMonth);
 
   if (UI.ahtMonthHeaderLabel) {
@@ -14616,7 +14738,6 @@ function renderAhtPage() {
     if (UI.ahtBatchBar) UI.ahtBatchBar.classList.add('hidden');
   }
 
-  const allAhtLogs = state.getAhtLogs();
   const monthLogs = (selectedMonth && selectedMonth !== 'ALL') ? allAhtLogs.filter(l => (l.date || '').startsWith(selectedMonth)) : allAhtLogs;
   const allRawUsers = state.getUsers ? state.getUsers() : [];
   const users = allRawUsers.filter(u => u && u.role !== 'admin');
@@ -15521,10 +15642,11 @@ function doGet(e) {
     const rows = [];
     for (let i = 1; i < data.length; i++) {
       const r = data[i];
-      if (!r[0]) continue;
+      if (!r[0] && !r[1] && !r[2]) continue;
+      const rowId = String(r[0] || '').trim() || ('aht_row_' + i);
       const actualSec = parseInt(r[4], 10) || 0;
       rows.push({
-        id: String(r[0]),
+        id: rowId,
         date: r[1] instanceof Date ? Utilities.formatDate(r[1], Session.getScriptTimeZone(), 'yyyy-MM-dd') : String(r[1]),
         userFullName: String(r[2] || ''),
         department: String(r[3] || ''),
@@ -16172,7 +16294,8 @@ function doGet(e) {
     const rows = [];
     for (let i = 1; i < data.length; i++) {
       const r = data[i];
-      if (!r[0]) continue;
+      if (!r[0] && !r[1] && !r[2]) continue;
+      const rowId = String(r[0] || '').trim() || ('art_row_' + i);
       const artSec = parseFloat(r[4]) || 0;
       const targetSec = parseInt(r[5], 10) || 30;
       const devSec = artSec - targetSec;
@@ -16776,7 +16899,23 @@ function renderArtPage() {
   const currentUser = state.currentUser;
   const currentFullName = currentUser ? currentUser.fullName : '';
 
-  const selectedMonth = (UI.filterArtMonth ? UI.filterArtMonth.value : '2026-10') || '2026-10';
+  const allArtLogs = state.getArtLogs();
+  const distinctArtMonths = Array.from(new Set(allArtLogs.map(l => String(l.date || '').slice(0, 7)).filter(ym => /^\d{4}-\d{2}$/.test(ym)))).sort().reverse();
+  let selectedMonth = (UI.filterArtMonth ? UI.filterArtMonth.value : '') || '';
+  if (!selectedMonth || (selectedMonth !== 'ALL' && distinctArtMonths.length > 0 && !distinctArtMonths.includes(selectedMonth))) {
+    selectedMonth = distinctArtMonths[0] || 'ALL';
+    if (UI.filterArtMonth) {
+      if (UI.filterArtMonth.options && !Array.from(UI.filterArtMonth.options).some(o => o.value === selectedMonth)) {
+        const opt = document.createElement('option');
+        opt.value = selectedMonth;
+        opt.textContent = formatMonthLabel(selectedMonth);
+        UI.filterArtMonth.appendChild(opt);
+      }
+      UI.filterArtMonth.value = selectedMonth;
+    }
+  } else if (!selectedMonth) {
+    selectedMonth = 'ALL';
+  }
   const monthLabel = formatMonthLabel(selectedMonth);
 
   if (UI.artMonthHeaderLabel) {
@@ -16837,7 +16976,6 @@ function renderArtPage() {
 
   renderArtGSheetBar();
 
-  const allArtLogs = state.getArtLogs();
   const monthLogs = (selectedMonth && selectedMonth !== 'ALL') ? allArtLogs.filter(l => (l.date || '').startsWith(selectedMonth)) : allArtLogs;
   const allRawUsers = state.getUsers ? state.getUsers() : [];
   const users = allRawUsers.filter(u => u && u.role !== 'admin');
@@ -17812,9 +17950,10 @@ function doGet(e) {
     const rows = [];
     for (let i = 1; i < data.length; i++) {
       const r = data[i];
-      if (!r[0]) continue;
+      if (!r[0] && !r[1] && !r[2]) continue;
+      const rowId = String(r[0] || '').trim() || ('fnd_row_' + i);
       rows.push({
-        id: String(r[0] || ''),
+        id: rowId,
         date: r[1] instanceof Date ? Utilities.formatDate(r[1], Session.getScriptTimeZone(), 'yyyy-MM-dd') : String(r[1] || ''),
         userFullName: String(r[2] || ''),
         department: String(r[3] || 'CSO INBOUND'),
@@ -18226,10 +18365,6 @@ async function pushFindingToGoogleSheets() {
 }
 
 async function pullFindingFromGoogleSheets() {
-  if (!state.isAdmin()) {
-    showToast('Akses Dibatasi', 'Hanya Administrator yang memiliki wewenang untuk sinkronisasi Google Spreadsheet.', 'warning');
-    return;
-  }
   const config = state.getFindingGSheetConfig();
   if (!config.webAppUrl && !config.sheetId) {
     showToast('Belum Dikonfigurasi', 'Harap konfigurasi URL Web App atau ID Spreadsheet terlebih dahulu.', 'warning');
@@ -18499,7 +18634,22 @@ function renderFindingPage() {
     ? nonAdminFindings
     : nonAdminFindings.filter(f => isFindingForUser(f, currentUser));
 
-  const selectedMonth = (UI.filterFindingMonth ? UI.filterFindingMonth.value : '2026-09') || 'ALL';
+  const distinctFindingMonths = Array.from(new Set(accessibleFindings.map(l => String(l.date || '').slice(0, 7)).filter(ym => /^\d{4}-\d{2}$/.test(ym)))).sort().reverse();
+  let selectedMonth = (UI.filterFindingMonth ? UI.filterFindingMonth.value : '') || '';
+  if (!selectedMonth || (selectedMonth !== 'ALL' && distinctFindingMonths.length > 0 && !distinctFindingMonths.includes(selectedMonth))) {
+    selectedMonth = distinctFindingMonths[0] || 'ALL';
+    if (UI.filterFindingMonth) {
+      if (UI.filterFindingMonth.options && !Array.from(UI.filterFindingMonth.options).some(o => o.value === selectedMonth)) {
+        const opt = document.createElement('option');
+        opt.value = selectedMonth;
+        opt.textContent = formatMonthLabel(selectedMonth);
+        UI.filterFindingMonth.appendChild(opt);
+      }
+      UI.filterFindingMonth.value = selectedMonth;
+    }
+  } else if (!selectedMonth) {
+    selectedMonth = 'ALL';
+  }
   const searchQ = (UI.searchFindingInput ? UI.searchFindingInput.value.trim().toLowerCase() : '');
   const filterService = (UI.filterFindingService ? UI.filterFindingService.value : 'ALL');
   const filterType = (UI.filterFindingType ? UI.filterFindingType.value : 'ALL');
@@ -19019,7 +19169,7 @@ window.promptDeleteAllFindingMonth = function() {
     showToast('Akses Ditolak', 'Hanya Administrator yang dapat menghapus data temuan bulanan.', 'warning');
     return;
   }
-  const selectedMonth = (UI.filterFindingMonth ? UI.filterFindingMonth.value : '2026-09') || 'ALL';
+  const selectedMonth = (UI.filterFindingMonth ? UI.filterFindingMonth.value : '') || 'ALL';
   if (!selectedMonth || selectedMonth === 'ALL') {
     showToast('Pilih Bulan Spesifik', 'Silakan pilih bulan tertentu terlebih dahulu untuk menghapus data bulanan.', 'warning');
     return;
@@ -20329,7 +20479,7 @@ function initEvents() {
   if (UI.btnRefreshCa) {
     UI.btnRefreshCa.addEventListener('click', () => {
       const cfg = state.getCaGSheetConfig();
-      if (state.isAdmin() && cfg && (cfg.webAppUrl || cfg.sheetId)) {
+      if (cfg && (cfg.webAppUrl || cfg.sheetId)) {
         pullCaFromGoogleSheets();
       } else {
         renderCaPage();
@@ -20525,7 +20675,7 @@ function initEvents() {
   if (UI.btnRefreshTiket) {
     UI.btnRefreshTiket.addEventListener('click', () => {
       const cfg = state.getTiketGSheetConfig();
-      if (state.isAdmin() && cfg && (cfg.webAppUrl || cfg.sheetId)) {
+      if (cfg && (cfg.webAppUrl || cfg.sheetId)) {
         pullTiketFromGoogleSheets();
       } else {
         renderTiketPage();
@@ -20666,7 +20816,7 @@ function initEvents() {
   if (UI.btnRefreshAht) {
     UI.btnRefreshAht.addEventListener('click', () => {
       const cfg = state.getAhtGSheetConfig();
-      if (state.isAdmin() && cfg && (cfg.webAppUrl || cfg.sheetId)) {
+      if (cfg && (cfg.webAppUrl || cfg.sheetId)) {
         pullAhtFromGoogleSheets();
       } else {
         renderAhtPage();
@@ -20830,7 +20980,7 @@ function initEvents() {
   if (UI.btnRefreshArt) {
     UI.btnRefreshArt.addEventListener('click', () => {
       const cfg = state.getArtGSheetConfig();
-      if (state.isAdmin() && cfg && (cfg.webAppUrl || cfg.sheetId)) {
+      if (cfg && (cfg.webAppUrl || cfg.sheetId)) {
         pullArtFromGoogleSheets();
       } else {
         renderArtPage();
@@ -20991,7 +21141,7 @@ function initEvents() {
   if (UI.btnRefreshFinding) {
     UI.btnRefreshFinding.addEventListener('click', () => {
       const cfg = state.getFindingGSheetConfig();
-      if (state.isAdmin() && cfg && (cfg.webAppUrl || cfg.sheetId)) {
+      if (cfg && (cfg.webAppUrl || cfg.sheetId)) {
         pullFindingFromGoogleSheets();
       } else {
         renderFindingPage();

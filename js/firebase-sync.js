@@ -76,6 +76,8 @@
      */
     isDummyItem(item) {
       if (!item) return false;
+      // Data yang ditarik dari Google Spreadsheet adalah data riil dan bukan dummy
+      if (item._pulledAt) return false;
       const DUMMY_IDS = new Set([
         'usr_user_1', 'usr_user_2', 'usr_admin_2',
         'run_demo_1', 'run_demo_2', 'run_demo_3', 'run_demo_4',
@@ -360,41 +362,74 @@
         const remotePullTs = Math.max(Number(this._remoteDocPullTs?.[key] || 0), maxRemoteItemPullTs);
         const knownSynced = typeof this.getKnownSyncedIds === 'function' ? this.getKnownSyncedIds(key) : new Set();
 
-        const safeLocal = Array.isArray(localArr) ? localArr.filter(l => l && l.id && !this.isDummyItem(l) && !deletedIds.has(l.id)) : [];
-        const safeRemote = Array.isArray(remoteArr) ? remoteArr.filter(r => r && r.id && !this.isDummyItem(r) && !deletedIds.has(r.id)) : [];
+        const rawLocal = Array.isArray(localArr) ? localArr.filter(l => l && l.id && !this.isDummyItem(l)) : [];
+        const rawRemote = Array.isArray(remoteArr) ? remoteArr.filter(r => r && r.id && !this.isDummyItem(r)) : [];
+
+        // Pastikan baris aktif dari tarikan Google Spreadsheet TIDAK PERNAH terblokir oleh catatan deletedIds lama
+        if (localPullTs > 0) {
+          rawLocal.forEach(l => {
+            if (Number(l._pulledAt || 0) >= localPullTs) {
+              const lId = String(l.id);
+              deletedIds.delete(lId);
+              if (typeof this.clearDeletedId === 'function') this.clearDeletedId(key, lId);
+            }
+          });
+        }
+        if (remotePullTs > 0) {
+          rawRemote.forEach(r => {
+            if (Number(r._pulledAt || 0) >= remotePullTs) {
+              const rId = String(r.id);
+              deletedIds.delete(rId);
+              if (typeof this.clearDeletedId === 'function') this.clearDeletedId(key, rId);
+            }
+          });
+        }
+
+        const safeLocal = rawLocal.filter(l => !deletedIds.has(String(l.id)));
+        const safeRemote = rawRemote.filter(r => !deletedIds.has(String(r.id)));
         const localIdSet = new Set(safeLocal.map(l => String(l.id)));
         const remoteIdSet = new Set(safeRemote.map(r => String(r.id)));
 
         let hasLocalOverrides = false;
 
-        // 1. Jika perangkat lokal baru saja menarik (pull) dari Google Spreadsheet (termasuk jika hasil tarikan kosong []):
-        //    Seluruh data remote lama yang tidak ada di tarikan terakhir wajib dihapus dan tidak boleh muncul kembali!
+        // 1. Jika perangkat lokal baru saja menarik (pull) dari Google Spreadsheet (localPullTs >= remotePullTs):
+        //    Data pada safeLocal adalah tarikan spreadsheet terakhir yang absolut dan wajib sinkron.
+        //    Jika spreadsheet kosong (safeLocal.length === 0), semua data remote lama terhapus dari website.
+        //    Jika spreadsheet berisi data, seluruh data tersebut wajib tampil dan tidak boleh hilang.
         if (localPullTs > 0 && localPullTs >= remotePullTs) {
           safeRemote.forEach(r => {
             const rId = String(r.id);
-            const rTs = Math.max(Number(r._pulledAt || 0), Number(r._updatedAtMs || 0));
-            if (!localIdSet.has(rId) && rTs < localPullTs) {
+            if (!localIdSet.has(rId)) {
               deletedIds.add(rId);
               this.trackDeletedId(key, rId);
               hasLocalOverrides = true;
             }
           });
+          const mergedList = safeLocal;
+          try {
+            localStorage.setItem('vortex_synced_ids_' + key, JSON.stringify(mergedList.map(item => String(item.id))));
+          } catch (e) {}
+          return { merged: mergedList, hasLocalOverrides: true };
         }
 
         // 2. Jika Cloud memiliki tarikan Google Spreadsheet yang lebih baru (remotePullTs > localPullTs):
-        //    Seluruh data lokal lama yang tidak ada di tarikan terbaru Cloud wajib dihapus!
+        //    Data pada safeRemote adalah tarikan spreadsheet terbaru dari Cloud.
         if (remotePullTs > localPullTs) {
           try {
             localStorage.setItem('vortex_last_pull_ts_' + key, String(remotePullTs));
           } catch (e) {}
           safeLocal.forEach(l => {
             const lId = String(l.id);
-            const lTs = Math.max(Number(l._pulledAt || 0), Number(l._updatedAtMs || 0));
-            if (!remoteIdSet.has(lId) && lTs < remotePullTs) {
+            if (!remoteIdSet.has(lId)) {
               deletedIds.add(lId);
               this.trackDeletedId(key, lId);
             }
           });
+          const mergedList = safeRemote;
+          try {
+            localStorage.setItem('vortex_synced_ids_' + key, JSON.stringify(mergedList.map(item => String(item.id))));
+          } catch (e) {}
+          return { merged: mergedList, hasLocalOverrides: false };
         }
 
         const mergedMap = new Map();
@@ -413,8 +448,6 @@
           if (deletedIds.has(lId)) return;
           const r = mergedMap.get(lId);
           if (!r) {
-            // Item ada di lokal tapi tidak ada di Cloud:
-            // Jika sudah pernah disinkronkan sebelumnya dan lokal tidak lebih baru dari tarikan Cloud, berarti telah dihapus di Cloud
             const lTs = Math.max(Number(l._pulledAt || 0), Number(l._updatedAtMs || 0));
             if (knownSynced.has(lId) && lTs < remotePullTs) {
               deletedIds.add(lId);
@@ -1028,9 +1061,11 @@
           const username = (stateObj && stateObj.currentUser && (stateObj.currentUser.fullName || stateObj.currentUser.username)) || 'Device';
 
           const pullTs = Number(localStorage.getItem('vortex_last_pull_ts_' + key) || 0);
+          const activeIds = new Set(Array.isArray(cleanData) ? cleanData.map(item => item && item.id ? String(item.id) : '').filter(Boolean) : []);
+          const finalDeletedIds = [...this.getDeletedIds(key)].filter(id => !activeIds.has(id));
           await this.db.collection(COLLECTION_NAME).doc(key).set({
             payload: cleanData,
-            deletedIds: [...this.getDeletedIds(key)],
+            deletedIds: finalDeletedIds,
             lastPullTs: pullTs,
             writerDeviceId: this.deviceId,
             actionTimestamp: Date.now(),
@@ -1092,10 +1127,12 @@
             try {
               const data = JSON.parse(raw);
               const cleanData = JSON.parse(JSON.stringify(data));
+              const activeIds = new Set(Array.isArray(cleanData) ? cleanData.map(item => item && item.id ? String(item.id) : '').filter(Boolean) : []);
+              const finalDeletedIds = [...this.getDeletedIds(key)].filter(id => !activeIds.has(id));
               const ref = this.db.collection(COLLECTION_NAME).doc(key);
               batch.set(ref, {
                 payload: cleanData,
-                deletedIds: [...this.getDeletedIds(key)],
+                deletedIds: finalDeletedIds,
                 writerDeviceId: this.deviceId,
                 actionTimestamp: Date.now(),
                 updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
