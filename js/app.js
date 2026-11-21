@@ -12882,11 +12882,7 @@ async function pullCaFromGoogleSheets() {
       renderCaPage();
       if (typeof renderOverviewPage === 'function' && state.currentPage === 'overview') renderOverviewPage();
 
-      if (stampedLogs.length > 0) {
-        showToast('Tarik Data Berhasil', `Berhasil mengambil <strong>${stampedLogs.length} data CA</strong> terbaru dari Google Spreadsheet.`, 'success');
-      } else {
-        showToast('Sinkronisasi Spreadsheet Kosong', 'Data CA pada Google Spreadsheet kosong (0 baris). Data CA pada website telah dihapus mengikuti spreadsheet.', 'info');
-      }
+      // Notifikasi tarik data berhasil di-hidden sesuai permintaan
     } else {
       showToast('Data Kosong / Tidak Terbaca', 'Tidak dapat membaca data CA dari Google Spreadsheet. Pastikan akses Web App / Sheet disetel "Anyone".', 'warning');
     }
@@ -14579,11 +14575,7 @@ async function pullTiketFromGoogleSheets() {
       renderTiketPage();
       if (typeof renderOverviewPage === 'function' && state.currentPage === 'overview') renderOverviewPage();
 
-      if (stampedLogs.length > 0) {
-        showToast('Tarik Data Berhasil', `Berhasil mengambil <strong>${stampedLogs.length} data tiket</strong> terbaru dari Google Spreadsheet.`, 'success');
-      } else {
-        showToast('Sinkronisasi Spreadsheet Kosong', 'Data Tiket pada Google Spreadsheet kosong (0 baris). Data Tiket pada website telah dihapus mengikuti spreadsheet.', 'info');
-      }
+      // Notifikasi tarik data berhasil di-hidden sesuai permintaan
     } else {
       showToast('Data Kosong / Tidak Terbaca', 'Tidak dapat membaca data tiket dari Google Spreadsheet. Pastikan akses Web App / Sheet disetel "Anyone".', 'warning');
     }
@@ -16168,11 +16160,7 @@ async function pullAhtFromGoogleSheets() {
       renderAhtPage();
       if (typeof renderOverviewPage === 'function' && state.currentPage === 'overview') renderOverviewPage();
 
-      if (stampedLogs.length > 0) {
-        showToast('Tarik Data Berhasil', `Berhasil mengambil <strong>${stampedLogs.length} data AHT</strong> terbaru dari Google Spreadsheet.`, 'success');
-      } else {
-        showToast('Sinkronisasi Spreadsheet Kosong', 'Data AHT pada Google Spreadsheet kosong (0 baris). Data AHT pada website telah dihapus mengikuti spreadsheet.', 'info');
-      }
+      // Notifikasi tarik data berhasil di-hidden sesuai permintaan
     } else {
       showToast('Data Kosong / Tidak Terbaca', 'Tidak dapat membaca data AHT dari Google Spreadsheet. Pastikan akses Web App / Sheet disetel "Anyone".', 'warning');
     }
@@ -16830,11 +16818,7 @@ async function pullArtFromGoogleSheets() {
       renderArtPage();
       if (typeof renderOverviewPage === 'function' && state.currentPage === 'overview') renderOverviewPage();
 
-      if (stampedLogs.length > 0) {
-        showToast('Tarik Data Berhasil', `Berhasil mengambil <strong>${stampedLogs.length} data ART</strong> terbaru dari Google Spreadsheet.`, 'success');
-      } else {
-        showToast('Sinkronisasi Spreadsheet Kosong', 'Data ART pada Google Spreadsheet kosong (0 baris). Data ART pada website telah dihapus mengikuti spreadsheet.', 'info');
-      }
+      // Notifikasi tarik data berhasil di-hidden sesuai permintaan
     } else {
       showToast('Data Kosong / Tidak Terbaca', 'Tidak dapat membaca data ART dari Google Spreadsheet. Pastikan akses Web App / Sheet disetel "Anyone".', 'warning');
     }
@@ -18494,11 +18478,7 @@ async function pullFindingFromGoogleSheets() {
       renderFindingPage();
       if (typeof renderUpdatePaPage === 'function' && state.currentPage === 'update-pa') renderUpdatePaPage();
 
-      if (stampedFindings.length > 0) {
-        showToast('Tarik Data Berhasil', `Berhasil mengambil <strong>${stampedFindings.length} data Finding</strong> terbaru dari Google Spreadsheet.`, 'success');
-      } else {
-        showToast('Sinkronisasi Spreadsheet Kosong', 'Data Finding pada Google Spreadsheet kosong (0 baris). Data Finding pada website telah dihapus mengikuti spreadsheet.', 'info');
-      }
+      // Notifikasi tarik data berhasil di-hidden sesuai permintaan
     } else {
       showToast('Data Kosong / Tidak Terbaca', 'Tidak dapat membaca data Finding dari Google Spreadsheet. Pastikan akses Web App / Sheet disetel "Anyone".', 'warning');
     }
